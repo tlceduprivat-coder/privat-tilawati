@@ -10,8 +10,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Plus, Pencil, Trash2, Search } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
 import { toast } from 'sonner';
+import { PROGRAM_NAMES } from '@/lib/programs';
 
-const PROGRAMS = ['Tilawati Anak', 'Tilawati Remaja & Dewasa', 'Tahsin Tilawah', 'Tilawati Goes To Office', 'Kelas Reguler Online', 'Kelas Reguler Offline'];
+const PROGRAMS = PROGRAM_NAMES;
 
 export default function SantriPage() {
   const [data, setData] = useState([]);

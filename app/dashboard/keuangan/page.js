@@ -17,6 +17,9 @@ export default function KeuanganPage() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({ santriNama: '', bulan: '', nominal: '', status: 'Belum', catatan: '' });
+  const user = typeof window !== 'undefined' ? (JSON.parse(localStorage.getItem('pt_user') || 'null')) : null;
+  const isAdmin = user?.role === 'admin';
+  const isWali = user?.role === 'wali';
 
   const load = async () => {
     try { const res = await apiFetch('keuangan'); setData(res.data || []); }
@@ -55,10 +58,10 @@ export default function KeuanganPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap gap-3 items-center justify-between">
         <div>
-          <h1 className="text-2xl md:text-3xl font-extrabold text-slate-800">Administrasi Keuangan</h1>
-          <p className="text-sm text-muted-foreground mt-1">Kelola pembayaran SPP santri.</p>
+          <h1 className="text-2xl md:text-3xl font-extrabold text-slate-800">{isWali ? 'SPP & Tagihan Saya' : 'Administrasi Keuangan'}</h1>
+          <p className="text-sm text-muted-foreground mt-1">{isWali ? 'Cek status pembayaran SPP per bulan.' : 'Kelola pembayaran SPP santri.'}</p>
         </div>
-        <Button onClick={openAdd} className="bg-sky-500 hover:bg-sky-600"><Plus className="w-4 h-4 mr-2"/> Catat SPP</Button>
+        {isAdmin && <Button onClick={openAdd} className="bg-sky-500 hover:bg-sky-600"><Plus className="w-4 h-4 mr-2"/> Catat SPP</Button>}
       </div>
 
       <div className="grid md:grid-cols-3 gap-4">
@@ -100,14 +103,15 @@ export default function KeuanganPage() {
                   <td className="py-3 px-3">{k.bulan}</td>
                   <td className="py-3 px-3 font-mono">{fmt(k.nominal)}</td>
                   <td className="py-3 px-3">
-                    <button onClick={() => toggleStatus(k)} className={`px-2.5 py-1 rounded text-xs font-medium ${k.status === 'Lunas' ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-red-100 text-red-700 hover:bg-red-200'}`}>
+                    <button onClick={() => isAdmin && toggleStatus(k)} className={`px-2.5 py-1 rounded text-xs font-medium ${k.status === 'Lunas' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'} ${isAdmin ? 'hover:opacity-80 cursor-pointer' : 'cursor-default'}`} disabled={!isAdmin}>
                       {k.status}
                     </button>
                   </td>
                   <td className="py-3 px-3 max-w-[200px] truncate">{k.catatan}</td>
                   <td className="py-3 px-3 text-right">
-                    <Button size="sm" variant="ghost" onClick={() => openEdit(k)}><Pencil className="w-4 h-4"/></Button>
-                    <Button size="sm" variant="ghost" onClick={() => del(k.id)} className="text-red-600"><Trash2 className="w-4 h-4"/></Button>
+                    {isAdmin && <Button size="sm" variant="ghost" onClick={() => openEdit(k)}><Pencil className="w-4 h-4"/></Button>}
+                    {isAdmin && <Button size="sm" variant="ghost" onClick={() => del(k.id)} className="text-red-600"><Trash2 className="w-4 h-4"/></Button>}
+                    {isWali && <span className="text-xs text-muted-foreground">-</span>}
                   </td>
                 </tr>
               ))}

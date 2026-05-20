@@ -45,9 +45,7 @@ export default function LoginPage() {
         </Link>
         <Card className="p-8 shadow-2xl">
           <div className="flex flex-col items-center mb-6">
-            <div className="w-20 h-20 rounded-2xl bg-black flex items-center justify-center overflow-hidden mb-3">
-              <img src={logo} alt="logo" className="w-full h-full object-contain" />
-            </div>
+            <img src={logo} alt="logo" className="h-20 w-auto object-contain mb-3" />
             <h1 className="text-2xl font-extrabold">Login Dashboard</h1>
             <p className="text-sm text-muted-foreground text-center">Privat Tilawati - Sistem Manajemen</p>
           </div>

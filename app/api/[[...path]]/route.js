@@ -31,6 +31,81 @@ async function handle(request, { params }) {
       if (!user) return json({ error: 'Unauthorized' }, 401);
       return json({ user });
     }
+    if (path === 'auth/update-profile' && method === 'PUT') {
+      const u = await getCurrentUser(request);
+      if (!u) return json({ error: 'Unauthorized' }, 401);
+      const body = await request.json();
+      const update = {};
+      if (body.name) update.name = body.name;
+      if (body.email) update.email = body.email.toLowerCase();
+      if (body.whatsapp !== undefined) update.whatsapp = body.whatsapp;
+      if (body.password && body.password.length >= 6) {
+        update.passwordHash = await hashPassword(body.password);
+      }
+      await db.collection('users').updateOne({ id: u.id }, { $set: update });
+      return json({ success: true });
+    }
+
+    // ===== USERS MANAGEMENT (admin only) =====
+    if (path === 'users' && method === 'GET') {
+      const u = await getCurrentUser(request);
+      if (!u || u.role !== 'admin') return json({ error: 'Forbidden' }, 403);
+      const users = await db.collection('users').find({}, { projection: { _id: 0, passwordHash: 0 } }).sort({ createdAt: -1 }).toArray();
+      return json({ data: users });
+    }
+    if (path === 'users' && method === 'POST') {
+      const u = await getCurrentUser(request);
+      if (!u || u.role !== 'admin') return json({ error: 'Forbidden' }, 403);
+      const body = await request.json();
+      if (!body.name || !body.email || !body.role) return json({ error: 'Nama, email, dan role wajib' }, 400);
+      const existing = await db.collection('users').findOne({ email: body.email.toLowerCase() });
+      if (existing) return json({ error: 'Email sudah terdaftar' }, 400);
+      // Generate random password if not provided
+      const plainPassword = body.password || (Math.random().toString(36).slice(-4) + Math.random().toString(36).slice(-4)).toUpperCase().slice(0,8);
+      const passwordHash = await hashPassword(plainPassword);
+      const doc = {
+        id: uuidv4(),
+        name: body.name,
+        email: body.email.toLowerCase(),
+        role: body.role, // 'admin' | 'asatidz' | 'wali'
+        whatsapp: body.whatsapp || '',
+        santriId: body.santriId || null, // untuk wali (link ke santri)
+        asatidzId: body.asatidzId || null, // untuk asatidz (link ke profile asatidz)
+        passwordHash,
+        createdAt: new Date().toISOString(),
+      };
+      await db.collection('users').insertOne(doc);
+      return json({ success: true, data: { id: doc.id, name: doc.name, email: doc.email, role: doc.role, whatsapp: doc.whatsapp, plainPassword } });
+    }
+    if (path.startsWith('users/') && method === 'PUT') {
+      const u = await getCurrentUser(request);
+      if (!u || u.role !== 'admin') return json({ error: 'Forbidden' }, 403);
+      const id = path.split('/')[1];
+      const body = await request.json();
+      delete body._id; delete body.id; delete body.passwordHash;
+      if (body.password) { body.passwordHash = await hashPassword(body.password); delete body.password; }
+      if (body.email) body.email = body.email.toLowerCase();
+      await db.collection('users').updateOne({ id }, { $set: body });
+      return json({ success: true });
+    }
+    if (path.startsWith('users/') && path.endsWith('/reset-password') && method === 'POST') {
+      const u = await getCurrentUser(request);
+      if (!u || u.role !== 'admin') return json({ error: 'Forbidden' }, 403);
+      const id = path.split('/')[1];
+      const plainPassword = (Math.random().toString(36).slice(-4) + Math.random().toString(36).slice(-4)).toUpperCase().slice(0,8);
+      const passwordHash = await hashPassword(plainPassword);
+      await db.collection('users').updateOne({ id }, { $set: { passwordHash } });
+      const user = await db.collection('users').findOne({ id }, { projection: { _id: 0, passwordHash: 0 } });
+      return json({ success: true, data: { ...user, plainPassword } });
+    }
+    if (path.startsWith('users/') && method === 'DELETE') {
+      const u = await getCurrentUser(request);
+      if (!u || u.role !== 'admin') return json({ error: 'Forbidden' }, 403);
+      const id = path.split('/')[1];
+      if (id === u.id) return json({ error: 'Tidak bisa menghapus diri sendiri' }, 400);
+      await db.collection('users').deleteOne({ id });
+      return json({ success: true });
+    }
 
     // Helper to require auth
     const requireAuth = async (roles = null) => {
@@ -188,8 +263,15 @@ async function handle(request, { params }) {
 
     // ===== PROGRESS =====
     if (path === 'progress' && method === 'GET') {
-      const auth = await requireAuth(['admin', 'asatidz']); if (auth.error) return auth.error;
-      const data = await db.collection('progress').find({}, { projection: { _id: 0 } }).sort({ tanggal: -1 }).toArray();
+      const auth = await requireAuth(['admin', 'asatidz', 'wali']); if (auth.error) return auth.error;
+      let query = {};
+      // wali only sees their child's progress
+      if (auth.user.role === 'wali' && auth.user.santriId) {
+        const santri = await db.collection('santri').findOne({ id: auth.user.santriId });
+        if (santri) query.santriNama = santri.nama;
+        else return json({ data: [] });
+      }
+      const data = await db.collection('progress').find(query, { projection: { _id: 0 } }).sort({ tanggal: -1 }).toArray();
       return json({ data });
     }
     if (path === 'progress' && method === 'POST') {
@@ -202,6 +284,8 @@ async function handle(request, { params }) {
         materi: body.materi,
         halaman: body.halaman || '',
         catatan: body.catatan || '',
+        nilai: body.nilai || '',  // A/B/C/D atau angka 0-100
+        nilaiAngka: body.nilaiAngka ? Number(body.nilaiAngka) : null,
         tanggal: body.tanggal || new Date().toISOString().slice(0, 10),
         createdAt: new Date().toISOString(),
       };
@@ -217,8 +301,14 @@ async function handle(request, { params }) {
 
     // ===== KEUANGAN =====
     if (path === 'keuangan' && method === 'GET') {
-      const auth = await requireAuth(['admin']); if (auth.error) return auth.error;
-      const data = await db.collection('keuangan').find({}, { projection: { _id: 0 } }).sort({ createdAt: -1 }).toArray();
+      const auth = await requireAuth(['admin', 'wali']); if (auth.error) return auth.error;
+      let query = {};
+      if (auth.user.role === 'wali' && auth.user.santriId) {
+        const santri = await db.collection('santri').findOne({ id: auth.user.santriId });
+        if (santri) query.santriNama = santri.nama;
+        else return json({ data: [] });
+      }
+      const data = await db.collection('keuangan').find(query, { projection: { _id: 0 } }).sort({ createdAt: -1 }).toArray();
       return json({ data });
     }
     if (path === 'keuangan' && method === 'POST') {
@@ -252,9 +342,200 @@ async function handle(request, { params }) {
       return json({ success: true });
     }
 
+    // ===== ABSENSI (per pertemuan) =====
+    if (path === 'absensi' && method === 'GET') {
+      const auth = await requireAuth(['admin', 'asatidz']); if (auth.error) return auth.error;
+      const { searchParams } = new URL(request.url);
+      const bulan = searchParams.get('bulan'); // format YYYY-MM
+      const guruNama = searchParams.get('guruNama');
+      const query = {};
+      if (guruNama) query.guruNama = guruNama;
+      if (bulan) query.tanggal = { $regex: '^' + bulan };
+      const data = await db.collection('absensi').find(query, { projection: { _id: 0 } }).sort({ tanggal: -1 }).toArray();
+      return json({ data });
+    }
+    if (path === 'absensi' && method === 'POST') {
+      const auth = await requireAuth(['admin', 'asatidz']); if (auth.error) return auth.error;
+      const body = await request.json();
+      const doc = {
+        id: uuidv4(),
+        santriNama: body.santriNama,
+        guruNama: body.guruNama || auth.user.name,
+        program: body.program,
+        tanggal: body.tanggal || new Date().toISOString().slice(0,10),
+        jam: body.jam || '',
+        status: body.status || 'Hadir', // Hadir | Izin | Sakit | Alpa
+        catatan: body.catatan || '',
+        verified: false,
+        createdAt: new Date().toISOString(),
+      };
+      await db.collection('absensi').insertOne(doc);
+      return json({ data: doc });
+    }
+    if (path.startsWith('absensi/') && path.endsWith('/verify') && method === 'POST') {
+      const auth = await requireAuth(['admin']); if (auth.error) return auth.error;
+      const id = path.split('/')[1];
+      await db.collection('absensi').updateOne({ id }, { $set: { verified: true } });
+      return json({ success: true });
+    }
+    if (path.startsWith('absensi/') && method === 'PUT') {
+      const auth = await requireAuth(['admin', 'asatidz']); if (auth.error) return auth.error;
+      const id = path.split('/')[1];
+      const body = await request.json();
+      delete body._id; delete body.id;
+      await db.collection('absensi').updateOne({ id }, { $set: body });
+      return json({ success: true });
+    }
+    if (path.startsWith('absensi/') && method === 'DELETE') {
+      const auth = await requireAuth(['admin', 'asatidz']); if (auth.error) return auth.error;
+      const id = path.split('/')[1];
+      await db.collection('absensi').deleteOne({ id });
+      return json({ success: true });
+    }
+
+    // ===== SLOT KOSONG ASATIDZ =====
+    if (path === 'slot-kosong' && method === 'GET') {
+      const auth = await requireAuth(['admin', 'asatidz']); if (auth.error) return auth.error;
+      const data = await db.collection('slot_kosong').find({}, { projection: { _id: 0 } }).sort({ createdAt: -1 }).toArray();
+      return json({ data });
+    }
+    if (path === 'slot-kosong' && method === 'POST') {
+      const auth = await requireAuth(['admin', 'asatidz']); if (auth.error) return auth.error;
+      const body = await request.json();
+      const doc = {
+        id: uuidv4(),
+        guruNama: body.guruNama || auth.user.name,
+        hari: body.hari,
+        jam: body.jam,
+        lokasi: body.lokasi || 'Offline',
+        catatan: body.catatan || '',
+        status: 'tersedia',
+        createdAt: new Date().toISOString(),
+      };
+      await db.collection('slot_kosong').insertOne(doc);
+      return json({ data: doc });
+    }
+    if (path.startsWith('slot-kosong/') && method === 'DELETE') {
+      const auth = await requireAuth(['admin', 'asatidz']); if (auth.error) return auth.error;
+      const id = path.split('/')[1];
+      await db.collection('slot_kosong').deleteOne({ id });
+      return json({ success: true });
+    }
+
+    // ===== RECEIPT ASATIDZ =====
+    if (path === 'receipts' && method === 'GET') {
+      const auth = await requireAuth(['admin', 'asatidz']); if (auth.error) return auth.error;
+      let query = {};
+      if (auth.user.role === 'asatidz') query.guruNama = auth.user.name;
+      const data = await db.collection('receipts').find(query, { projection: { _id: 0 } }).sort({ createdAt: -1 }).toArray();
+      return json({ data });
+    }
+    if (path === 'receipts/calculate' && method === 'POST') {
+      const auth = await requireAuth(['admin']); if (auth.error) return auth.error;
+      const body = await request.json(); // { guruNama, bulan, potonganPersen, tarifMap }
+      const { guruNama, bulan, potonganPersen = 20, tarifMap = {} } = body;
+      const absensiList = await db.collection('absensi').find({
+        guruNama,
+        tanggal: { $regex: '^' + bulan },
+        status: 'Hadir',
+      }, { projection: { _id: 0 } }).toArray();
+      const items = absensiList.map(a => ({
+        tanggal: a.tanggal,
+        santri: a.santriNama,
+        program: a.program,
+        tarif: Number(tarifMap[a.program] || 0),
+      }));
+      const subtotal = items.reduce((s, i) => s + i.tarif, 0);
+      const potongan = Math.round(subtotal * (potonganPersen / 100));
+      const total = subtotal - potongan;
+      return json({ data: { guruNama, bulan, items, subtotal, potonganPersen, potongan, total, jumlahPertemuan: items.length } });
+    }
+    if (path === 'receipts' && method === 'POST') {
+      const auth = await requireAuth(['admin']); if (auth.error) return auth.error;
+      const body = await request.json();
+      const doc = {
+        id: uuidv4(),
+        nomor: 'PT/' + new Date().getFullYear() + '/' + String(Date.now()).slice(-6),
+        guruNama: body.guruNama,
+        bulan: body.bulan,
+        items: body.items || [],
+        subtotal: Number(body.subtotal || 0),
+        potonganPersen: Number(body.potonganPersen || 20),
+        potongan: Number(body.potongan || 0),
+        total: Number(body.total || 0),
+        jumlahPertemuan: Number(body.jumlahPertemuan || 0),
+        status: 'belum_dibayar',
+        createdAt: new Date().toISOString(),
+      };
+      await db.collection('receipts').insertOne(doc);
+      return json({ data: doc });
+    }
+    if (path.startsWith('receipts/') && method === 'PUT') {
+      const auth = await requireAuth(['admin']); if (auth.error) return auth.error;
+      const id = path.split('/')[1];
+      const body = await request.json();
+      delete body._id; delete body.id;
+      await db.collection('receipts').updateOne({ id }, { $set: body });
+      return json({ success: true });
+    }
+    if (path.startsWith('receipts/') && method === 'DELETE') {
+      const auth = await requireAuth(['admin']); if (auth.error) return auth.error;
+      const id = path.split('/')[1];
+      await db.collection('receipts').deleteOne({ id });
+      return json({ success: true });
+    }
+
+    // ===== CHARTS DATA =====
+    if (path === 'charts' && method === 'GET') {
+      const auth = await requireAuth(['admin']); if (auth.error) return auth.error;
+      const { searchParams } = new URL(request.url);
+      const range = searchParams.get('range') || 'month'; // day|week|month|year
+      const now = new Date();
+      let start, groupFormat;
+      if (range === 'day') { start = new Date(now); start.setDate(start.getDate() - 30); groupFormat = (d) => d.slice(0,10); }
+      else if (range === 'week') { start = new Date(now); start.setDate(start.getDate() - 84); groupFormat = (d) => { const dt = new Date(d); const wk = Math.ceil((dt.getDate() + new Date(dt.getFullYear(), dt.getMonth(), 1).getDay()) / 7); return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-W${wk}`; }; }
+      else if (range === 'year') { start = new Date(now); start.setFullYear(start.getFullYear() - 5); groupFormat = (d) => d.slice(0,4); }
+      else { start = new Date(now); start.setMonth(start.getMonth() - 12); groupFormat = (d) => d.slice(0,7); }
+      const startIso = start.toISOString();
+
+      // Pendaftaran (santri masuk) per period
+      const santri = await db.collection('santri').find({ createdAt: { $gte: startIso } }, { projection: { _id: 0, createdAt: 1, status: 1 } }).toArray();
+      const masukKeluar = {};
+      santri.forEach(s => {
+        const k = groupFormat(s.createdAt);
+        if (!masukKeluar[k]) masukKeluar[k] = { period: k, masuk: 0, keluar: 0 };
+        masukKeluar[k].masuk += 1;
+        if (s.status === 'non-aktif') masukKeluar[k].keluar += 1;
+      });
+
+      // Keuangan per period
+      const keu = await db.collection('keuangan').find({ createdAt: { $gte: startIso } }, { projection: { _id: 0 } }).toArray();
+      const keuangan = {};
+      keu.forEach(k => {
+        const key = groupFormat(k.createdAt);
+        if (!keuangan[key]) keuangan[key] = { period: key, lunas: 0, belum: 0 };
+        if (k.status === 'Lunas') keuangan[key].lunas += k.nominal || 0;
+        else keuangan[key].belum += k.nominal || 0;
+      });
+
+      // Santri per asatidz
+      const allAsatidz = await db.collection('asatidz').find({}, { projection: { _id: 0 } }).toArray();
+      const allSantri = await db.collection('santri').find({ status: 'aktif' }, { projection: { _id: 0 } }).toArray();
+      const santriPerAsatidz = allAsatidz.map(a => ({
+        nama: a.nama,
+        jumlah: allSantri.filter(s => s.gurId === a.id).length,
+      })).sort((a,b) => b.jumlah - a.jumlah).slice(0, 10);
+
+      return json({
+        masukKeluar: Object.values(masukKeluar).sort((a,b) => a.period.localeCompare(b.period)),
+        keuangan: Object.values(keuangan).sort((a,b) => a.period.localeCompare(b.period)),
+        santriPerAsatidz,
+      });
+    }
+
     // ===== STATS for dashboard =====
     if (path === 'stats' && method === 'GET') {
-      const auth = await requireAuth(['admin', 'asatidz']); if (auth.error) return auth.error;
+      const auth = await requireAuth(['admin', 'asatidz', 'wali']); if (auth.error) return auth.error;
       const santriAktif = await db.collection('santri').countDocuments({ status: 'aktif' });
       const santriNon = await db.collection('santri').countDocuments({ status: 'non-aktif' });
       const asatidz = await db.collection('asatidz').countDocuments({});

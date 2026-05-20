@@ -7,11 +7,9 @@ export default function SiteFooter() {
   const logo = process.env.NEXT_PUBLIC_LOGO_URL;
   return (
     <footer className="bg-gradient-to-br from-sky-900 via-blue-900 to-sky-950 text-white mt-20">
-      <div className="container mx-auto px-4 py-12 grid md:grid-cols-4 gap-8">
+      <div className="container mx-auto px-6 lg:px-10 py-12 grid md:grid-cols-4 gap-8">
         <div className="md:col-span-2">
-          <div className="flex items-center gap-3 mb-4">
-            <img src={logo} alt="logo" className="h-14 w-auto object-contain" />
-          </div>
+          <img src={logo} alt="logo" className="h-14 w-auto object-contain mb-4" />
           <p className="text-sm text-white/80 max-w-md">
             Lembaga pendidikan Al-Qur'an yang berdiri sejak 2017. Mendidik generasi Qur'ani dengan metode Tilawati yang sistematis, menyenangkan, dan efektif.
           </p>
@@ -36,7 +34,7 @@ export default function SiteFooter() {
         </div>
       </div>
       <div className="border-t border-white/10">
-        <div className="container mx-auto px-4 py-4 text-center text-xs text-white/60">
+        <div className="container mx-auto px-6 lg:px-10 py-4 text-center text-xs text-white/60">
           © {new Date().getFullYear()} Privat Tilawati. All rights reserved.
         </div>
       </div>

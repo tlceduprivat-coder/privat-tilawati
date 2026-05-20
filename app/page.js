@@ -19,7 +19,7 @@ export default function HomePage() {
 
       {/* HERO */}
       <section className="relative overflow-hidden bg-pattern">
-        <div className="container mx-auto px-4 py-16 md:py-24 grid md:grid-cols-2 gap-12 items-center">
+        <div className="container mx-auto px-6 lg:px-10 py-16 md:py-24 grid md:grid-cols-2 gap-12 items-center">
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-yellow-100 text-yellow-800 text-xs font-medium mb-5">
               <Sparkles className="w-3.5 h-3.5" /> Berdiri sejak 2017 · Bandung
@@ -70,7 +70,7 @@ export default function HomePage() {
       </section>
 
       {/* STATS */}
-      <section className="container mx-auto px-4 py-12">
+      <section className="container mx-auto px-6 lg:px-10 py-12">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
             { icon: GraduationCap, value: '30+', label: 'Guru Profesional', color: 'sky' },
@@ -90,7 +90,7 @@ export default function HomePage() {
       </section>
 
       {/* ABOUT */}
-      <section className="container mx-auto px-4 py-16 grid md:grid-cols-2 gap-12 items-center">
+      <section className="container mx-auto px-6 lg:px-10 py-16 grid md:grid-cols-2 gap-12 items-center">
         <div className="relative">
           <img src={learning2} alt="Quran learning" className="rounded-3xl shadow-xl w-full h-[400px] object-cover" />
           <div className="absolute -bottom-6 -right-6 bg-sky-500 text-white rounded-2xl p-5 shadow-xl max-w-[220px]">
@@ -115,7 +115,7 @@ export default function HomePage() {
 
       {/* WHY CHOOSE US */}
       <section className="bg-gradient-to-br from-sky-50 via-white to-blue-50 py-20">
-        <div className="container mx-auto px-4">
+        <div className="container mx-auto px-6 lg:px-10">
           <div className="text-center max-w-2xl mx-auto mb-12">
             <div className="text-sm font-semibold text-sky-500 mb-3">KENAPA PRIVAT TILAWATI?</div>
             <h2 className="text-3xl md:text-4xl font-extrabold">Belajar Al-Qur'an Jadi Lebih Mudah</h2>
@@ -143,27 +143,32 @@ export default function HomePage() {
       </section>
 
       {/* PROGRAMS */}
-      <section className="container mx-auto px-4 py-20">
+      <section className="container mx-auto px-6 lg:px-10 py-20">
         <div className="text-center max-w-2xl mx-auto mb-12">
           <div className="text-sm font-semibold text-sky-500 mb-3">PROGRAM PEMBELAJARAN</div>
           <h2 className="text-3xl md:text-4xl font-extrabold">Pilih Program Sesuai Kebutuhan</h2>
+          <p className="text-muted-foreground mt-3">Tarif infaq jasa peran orangtua, transportasi & operasional lembaga.</p>
         </div>
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {[
-            { title: 'Tilawati Anak', desc: 'Untuk anak usia 4-12 tahun. Belajar membaca Al-Qur\'an dari nol dengan menyenangkan.', level: 'TK / SD', color: 'from-sky-500 to-blue-600', icon: BookOpen },
-            { title: 'Tilawati Remaja & Dewasa', desc: 'Untuk remaja & dewasa yang ingin memperbaiki bacaan dari dasar hingga lancar.', level: 'SMP - Dewasa', color: 'from-blue-500 to-sky-600', icon: GraduationCap },
-            { title: 'Tahsin Tilawah', desc: 'Program lanjutan tahsin dengan fokus tajwid, makhraj, dan keindahan bacaan.', level: 'Lanjutan', color: 'from-yellow-500 to-orange-500', icon: Award },
-            { title: 'Tilawati Goes To Office', desc: 'Program khusus karyawan/perkantoran. Ustadz datang ke kantor untuk kelas grup.', level: 'Corporate', color: 'from-green-500 to-emerald-600', icon: Building2 },
-            { title: 'Kelas Reguler Online', desc: 'Belajar Al-Qur\'an via Zoom / Google Meet bersama ustadz dari rumah Anda.', level: 'Online', color: 'from-sky-400 to-cyan-500', icon: Wifi },
-            { title: 'Kelas Reguler Offline', desc: 'Belajar tatap muka langsung di lokasi atau privat home-visit.', level: 'Offline', color: 'from-emerald-500 to-green-600', icon: HomeIcon },
+            { title: 'Kelas Mandiri', kategori: 'Offline', tarif: 'Rp 85K', desc: '1 santri / 1 jam. Privat home-visit.', color: 'from-sky-500 to-blue-600', icon: BookOpen },
+            { title: 'Kelas Mentoring', kategori: 'Offline', tarif: 'Rp 150K', desc: '2-4 santri / 1 jam. Kelompok kecil.', color: 'from-blue-500 to-sky-600', icon: Users },
+            { title: "Kelas Ta'lim", kategori: 'Offline', tarif: 'Rp 200K', desc: '7-10 santri / 1 jam. Kelas Ta\'lim.', color: 'from-emerald-500 to-green-600', icon: GraduationCap },
+            { title: 'Kelas Guru/Instansi', kategori: 'Offline', tarif: 'Rp 250K', desc: '7-10 orang / 2 jam. Untuk guru/instansi.', color: 'from-green-500 to-emerald-600', icon: Award },
+            { title: 'Tilawati Goes To Office', kategori: 'Corporate', tarif: 'Rp 250K', desc: 'Ustadz datang ke kantor Anda.', color: 'from-yellow-500 to-orange-500', icon: Building2 },
+            { title: 'Kelas Reguler', kategori: 'Di Tempat Kami', tarif: 'Rp 150K', desc: 'Belajar di lokasi Privat Tilawati.', color: 'from-sky-400 to-cyan-500', icon: HomeIcon },
+            { title: 'Kelas Mandiri Online', kategori: 'Online', tarif: 'Rp 50K', desc: '45 menit / 1 santri via Zoom/Meet.', color: 'from-sky-500 to-blue-500', icon: Wifi },
+            { title: 'Kelas Mentoring Online', kategori: 'Online', tarif: 'Rp 75K', desc: '2-3 santri / 1 jam via Zoom/Meet.', color: 'from-blue-500 to-indigo-600', icon: Wifi },
+            { title: 'Munaqosyah & Sertifikasi', kategori: 'Test Jilid', tarif: 'Rp 35K-100K', desc: 'Test jilid + sertifikat digital setiap kenaikan.', color: 'from-emerald-500 to-teal-600', icon: Award },
           ].map((p, i) => (
             <Card key={i} className="overflow-hidden hover:shadow-2xl transition group">
               <div className={`h-32 bg-gradient-to-br ${p.color} relative flex items-end p-5`}>
-                <div className="absolute top-4 right-4 px-3 py-1 rounded-full bg-white/20 backdrop-blur text-white text-xs">{p.level}</div>
+                <div className="absolute top-4 right-4 px-3 py-1 rounded-full bg-white/20 backdrop-blur text-white text-xs">{p.kategori}</div>
                 <p.icon className="w-12 h-12 text-white/40 absolute top-4 left-4" />
                 <div className="text-white font-bold text-xl">{p.title}</div>
               </div>
               <div className="p-6">
+                <div className="text-2xl font-extrabold text-sky-600 mb-1">{p.tarif}<span className="text-xs font-normal text-muted-foreground"> / temu</span></div>
                 <p className="text-sm text-muted-foreground mb-4">{p.desc}</p>
                 <Link href="/daftar">
                   <Button variant="outline" className="w-full border-sky-500 text-sky-600 hover:bg-sky-50">Daftar Program Ini</Button>
@@ -172,11 +177,14 @@ export default function HomePage() {
             </Card>
           ))}
         </div>
+        <div className="mt-8 p-5 rounded-xl bg-yellow-50 border border-yellow-200 text-sm text-yellow-900 max-w-3xl mx-auto">
+          <strong>Catatan:</strong> Administrasi mengaji bukan sebagai bayaran asatidz, tapi sebagai pengganti jasa Peran Orangtua, Transportasi, dan operasional Lembaga Privat Tilawati. Penyerahan infaq sebelum pembelajaran dimulai atau selambat-lambatnya tanggal 10.
+        </div>
       </section>
 
       {/* TESTIMONIALS */}
       <section className="bg-sky-50 py-20">
-        <div className="container mx-auto px-4">
+        <div className="container mx-auto px-6 lg:px-10">
           <div className="text-center max-w-2xl mx-auto mb-12">
             <div className="text-sm font-semibold text-sky-500 mb-3">TESTIMONI</div>
             <h2 className="text-3xl md:text-4xl font-extrabold">Apa Kata Mereka?</h2>
@@ -207,7 +215,7 @@ export default function HomePage() {
       </section>
 
       {/* CTA */}
-      <section className="container mx-auto px-4 py-20">
+      <section className="container mx-auto px-6 lg:px-10 py-20">
         <div className="relative rounded-3xl overflow-hidden bg-gradient-to-br from-sky-500 via-blue-600 to-sky-700 p-10 md:p-16 text-white text-center">
           <div className="absolute inset-0 opacity-10" style={{backgroundImage: 'radial-gradient(circle at 20% 20%, white 0%, transparent 50%), radial-gradient(circle at 80% 80%, white 0%, transparent 50%)'}}></div>
           <div className="relative">

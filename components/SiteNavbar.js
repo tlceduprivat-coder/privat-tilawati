@@ -14,11 +14,11 @@ export default function SiteNavbar() {
   ];
   return (
     <header className="sticky top-0 z-40 w-full backdrop-blur-md bg-white/90 border-b border-border">
-      <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-        <Link href="/" className="flex items-center">
-          <img src={logo} alt="Privat Tilawati" className="h-12 w-auto object-contain" />
+      <div className="container mx-auto px-6 lg:px-10 h-20 flex items-center justify-between">
+        <Link href="/" className="flex items-center py-3">
+          <img src={logo} alt="Privat Tilawati" className="h-9 md:h-10 w-auto object-contain" />
         </Link>
-        <nav className="hidden md:flex items-center gap-8">
+        <nav className="hidden md:flex items-center gap-7">
           {links.map(l => (
             <Link key={l.href} href={l.href} className="text-sm font-medium hover:text-sky-600 transition">{l.label}</Link>
           ))}
@@ -35,7 +35,7 @@ export default function SiteNavbar() {
       </div>
       {open && (
         <div className="md:hidden border-t border-border bg-white">
-          <div className="container mx-auto px-4 py-4 flex flex-col gap-3">
+          <div className="container mx-auto px-6 py-4 flex flex-col gap-3">
             {links.map(l => (
               <Link key={l.href} href={l.href} className="text-sm font-medium py-2" onClick={() => setOpen(false)}>{l.label}</Link>
             ))}

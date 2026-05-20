@@ -10,13 +10,13 @@ export default function AboutPage() {
     <main className="min-h-screen bg-white">
       <SiteNavbar />
       <section className="bg-gradient-to-br from-sky-500 via-blue-600 to-sky-700 text-white py-20">
-        <div className="container mx-auto px-4 text-center">
+        <div className="container mx-auto px-6 lg:px-10 text-center">
           <h1 className="text-4xl md:text-5xl font-extrabold mb-4">Tentang Privat Tilawati</h1>
           <p className="text-white/90 max-w-2xl mx-auto">Mendidik generasi Qur'ani dengan metode Tilawati sejak 2017</p>
         </div>
       </section>
 
-      <section className="container mx-auto px-4 py-16 max-w-4xl">
+      <section className="container mx-auto px-6 lg:px-10 py-16 max-w-4xl">
         <div className="prose max-w-none">
           <h2 className="text-3xl font-extrabold mb-5">Sekilas Privat Tilawati</h2>
           <p className="text-muted-foreground leading-relaxed mb-4">
@@ -28,7 +28,7 @@ export default function AboutPage() {
         </div>
       </section>
 
-      <section className="container mx-auto px-4 py-10">
+      <section className="container mx-auto px-6 lg:px-10 py-10">
         <div className="grid md:grid-cols-2 gap-6">
           <Card className="p-8 border-2 border-sky-200 bg-sky-50">
             <div className="w-14 h-14 rounded-2xl bg-sky-500 text-white flex items-center justify-center mb-4">
@@ -55,7 +55,7 @@ export default function AboutPage() {
       </section>
 
       <section className="bg-gradient-to-br from-sky-50 to-blue-50 py-20">
-        <div className="container mx-auto px-4 max-w-4xl">
+        <div className="container mx-auto px-6 lg:px-10 max-w-4xl">
           <div className="text-center mb-12">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-yellow-100 text-yellow-800 text-xs font-medium mb-3">
               <BookOpen className="w-3.5 h-3.5" /> METODE PEMBELAJARAN
@@ -88,7 +88,7 @@ export default function AboutPage() {
         </div>
       </section>
 
-      <section className="container mx-auto px-4 py-20 max-w-4xl">
+      <section className="container mx-auto px-6 lg:px-10 py-20 max-w-4xl">
         <div className="text-center mb-12">
           <h2 className="text-3xl md:text-4xl font-extrabold">Perjalanan Kami</h2>
           <p className="text-muted-foreground mt-3">Dari satu kelompok kecil menjadi keluarga besar Qur'ani</p>

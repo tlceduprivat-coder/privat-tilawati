@@ -11,6 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { CheckCircle2, MessageCircle, Loader2 } from 'lucide-react';
+import { PROGRAMS, formatRupiah } from '@/lib/programs';
 
 export default function DaftarPage() {
   const [form, setForm] = useState({ nama: '', umur: '', alamat: '', whatsapp: '', program: '', keterangan: '' });
@@ -53,13 +54,13 @@ export default function DaftarPage() {
     <main className="min-h-screen bg-white">
       <SiteNavbar />
       <section className="bg-gradient-to-br from-green-600 via-emerald-600 to-sky-600 text-white py-16">
-        <div className="container mx-auto px-4 text-center">
+        <div className="container mx-auto px-6 lg:px-10 text-center">
           <h1 className="text-4xl md:text-5xl font-extrabold mb-3">Pendaftaran Santri</h1>
           <p className="text-white/90 max-w-xl mx-auto">Isi formulir di bawah ini untuk memulai perjalanan belajar Al-Qur'an bersama kami.</p>
         </div>
       </section>
 
-      <section className="container mx-auto px-4 py-12 max-w-3xl">
+      <section className="container mx-auto px-6 lg:px-10 py-12 max-w-3xl">
         {done ? (
           <Card className="p-10 text-center border-2 border-green-500">
             <CheckCircle2 className="w-16 h-16 text-green-600 mx-auto mb-4" />
@@ -95,13 +96,12 @@ export default function DaftarPage() {
                 <Label htmlFor="program">Pilih Program *</Label>
                 <Select value={form.program} onValueChange={(v) => onChange('program', v)}>
                   <SelectTrigger className="mt-1.5"><SelectValue placeholder="Pilih program" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Tilawati Anak">Tilawati Anak (TK / SD)</SelectItem>
-                    <SelectItem value="Tilawati Remaja & Dewasa">Tilawati Remaja &amp; Dewasa</SelectItem>
-                    <SelectItem value="Tahsin Tilawah">Tahsin Tilawah (Lanjutan)</SelectItem>
-                    <SelectItem value="Tilawati Goes To Office">Tilawati Goes To Office</SelectItem>
-                    <SelectItem value="Kelas Reguler Online">Kelas Reguler Online</SelectItem>
-                    <SelectItem value="Kelas Reguler Offline">Kelas Reguler Offline</SelectItem>
+                  <SelectContent className="max-h-[300px]">
+                    {PROGRAMS.map(p => (
+                      <SelectItem key={p.id} value={p.nama}>
+                        {p.nama} {p.tarif > 0 ? ` — ${formatRupiah(p.tarif)}` : ''}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
