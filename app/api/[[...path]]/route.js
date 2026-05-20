@@ -234,17 +234,22 @@ async function handle(request, { params }) {
     if (path === 'jadwal' && method === 'POST') {
       const auth = await requireAuth(['admin']); if (auth.error) return auth.error;
       const body = await request.json();
-      const doc = {
+      // Support multi-hari: if hari is array, create one record per day
+      const haris = Array.isArray(body.hari) ? body.hari : [body.hari];
+      const docs = haris.map(h => ({
         id: uuidv4(),
+        guruId: body.guruId || null,
         guruNama: body.guruNama,
+        santriId: body.santriId || null,
         santriNama: body.santriNama,
-        hari: body.hari,
+        program: body.program || '',
+        hari: h,
         jam: body.jam,
         lokasi: body.lokasi || 'Offline',
         createdAt: new Date().toISOString(),
-      };
-      await db.collection('jadwal').insertOne(doc);
-      return json({ data: doc });
+      }));
+      await db.collection('jadwal').insertMany(docs);
+      return json({ data: docs });
     }
     if (path.startsWith('jadwal/') && method === 'PUT') {
       const auth = await requireAuth(['admin']); if (auth.error) return auth.error;
@@ -277,15 +282,38 @@ async function handle(request, { params }) {
     if (path === 'progress' && method === 'POST') {
       const auth = await requireAuth(['admin', 'asatidz']); if (auth.error) return auth.error;
       const body = await request.json();
+      // Batch mode for group classes (multiple santri per session)
+      if (Array.isArray(body.entries) && body.entries.length > 0) {
+        const docs = body.entries.map(e => ({
+          id: uuidv4(),
+          santriId: e.santriId || null,
+          santriNama: e.santriNama,
+          guruNama: body.guruNama || auth.user.name,
+          program: body.program || e.program || '',
+          materi: body.materi || e.materi || '',
+          halaman: e.halaman || body.halaman || '',
+          catatan: e.catatan || '',
+          nilai: e.nilai || '',
+          nilaiAngka: e.nilaiAngka ? Number(e.nilaiAngka) : null,
+          tipeKelas: body.tipeKelas || 'grup',
+          tanggal: body.tanggal || new Date().toISOString().slice(0,10),
+          createdAt: new Date().toISOString(),
+        }));
+        await db.collection('progress').insertMany(docs);
+        return json({ data: docs, count: docs.length });
+      }
       const doc = {
         id: uuidv4(),
+        santriId: body.santriId || null,
         santriNama: body.santriNama,
         guruNama: body.guruNama || auth.user.name,
+        program: body.program || '',
         materi: body.materi,
         halaman: body.halaman || '',
         catatan: body.catatan || '',
-        nilai: body.nilai || '',  // A/B/C/D atau angka 0-100
+        nilai: body.nilai || '',
         nilaiAngka: body.nilaiAngka ? Number(body.nilaiAngka) : null,
+        tipeKelas: body.tipeKelas || 'mandiri',
         tanggal: body.tanggal || new Date().toISOString().slice(0, 10),
         createdAt: new Date().toISOString(),
       };
@@ -316,7 +344,9 @@ async function handle(request, { params }) {
       const body = await request.json();
       const doc = {
         id: uuidv4(),
+        santriId: body.santriId || null,
         santriNama: body.santriNama,
+        program: body.program || '',
         bulan: body.bulan,
         nominal: Number(body.nominal || 0),
         status: body.status || 'Belum',
@@ -357,14 +387,33 @@ async function handle(request, { params }) {
     if (path === 'absensi' && method === 'POST') {
       const auth = await requireAuth(['admin', 'asatidz']); if (auth.error) return auth.error;
       const body = await request.json();
+      // Support batch: if body.entries is array, create one per entry
+      if (Array.isArray(body.entries) && body.entries.length > 0) {
+        const docs = body.entries.map(e => ({
+          id: uuidv4(),
+          santriId: e.santriId || body.santriId || null,
+          santriNama: e.santriNama || body.santriNama,
+          guruNama: body.guruNama || auth.user.name,
+          program: e.program || body.program,
+          tanggal: e.tanggal || new Date().toISOString().slice(0,10),
+          jam: e.jam || body.jam || '',
+          status: e.status || 'Hadir',
+          catatan: e.catatan || '',
+          verified: false,
+          createdAt: new Date().toISOString(),
+        }));
+        await db.collection('absensi').insertMany(docs);
+        return json({ data: docs, count: docs.length });
+      }
       const doc = {
         id: uuidv4(),
+        santriId: body.santriId || null,
         santriNama: body.santriNama,
         guruNama: body.guruNama || auth.user.name,
         program: body.program,
         tanggal: body.tanggal || new Date().toISOString().slice(0,10),
         jam: body.jam || '',
-        status: body.status || 'Hadir', // Hadir | Izin | Sakit | Alpa
+        status: body.status || 'Hadir',
         catatan: body.catatan || '',
         verified: false,
         createdAt: new Date().toISOString(),
@@ -402,12 +451,15 @@ async function handle(request, { params }) {
     if (path === 'slot-kosong' && method === 'POST') {
       const auth = await requireAuth(['admin', 'asatidz']); if (auth.error) return auth.error;
       const body = await request.json();
+      // Lokasi can be array (multi-checkbox)
+      const lokasiArr = Array.isArray(body.lokasi) ? body.lokasi : [body.lokasi || 'Offline'];
       const doc = {
         id: uuidv4(),
+        guruId: body.guruId || null,
         guruNama: body.guruNama || auth.user.name,
         hari: body.hari,
         jam: body.jam,
-        lokasi: body.lokasi || 'Offline',
+        lokasi: lokasiArr,
         catatan: body.catatan || '',
         status: 'tersedia',
         createdAt: new Date().toISOString(),

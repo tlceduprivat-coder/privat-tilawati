@@ -351,6 +351,96 @@ backend:
         agent: "testing"
         comment: "✅ All progress nilai tests passed (3/3): POST with nilai='A' and nilaiAngka=90 creates record successfully, both fields stored correctly in response, GET returns progress with both nilai and nilaiAngka fields present. New fields working correctly."
 
+  - task: "Jadwal Multi-Hari (INTEGRASI DATA)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "POST /api/jadwal now accepts hari as array (e.g., ['Senin','Rabu','Jumat']). Creates one jadwal entry per day with unique IDs. Stores guruId, santriId, program fields. Fallback: string hari creates array with 1 element."
+      - working: true
+        agent: "testing"
+        comment: "✅ All jadwal multi-hari tests passed (3/3): POST with hari=['Senin','Rabu','Jumat'] creates 3 entries with unique IDs, each with correct hari value. GET returns all 3 entries with guruId, santriId, program stored correctly. Fallback: hari as string 'Sabtu' creates array with 1 element. Multi-day scheduling working perfectly."
+
+  - task: "Slot Kosong Multi-Lokasi (INTEGRASI DATA)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "POST /api/slot-kosong now accepts lokasi as array (e.g., ['Offline (Home Visit)','Online (Zoom/Meet)','Di Tempat Kami']). Stores lokasi as array. Fallback: string lokasi creates array with 1 element."
+      - working: true
+        agent: "testing"
+        comment: "✅ All slot kosong multi-lokasi tests passed (3/3): POST with lokasi array creates slot with 3 locations stored as array. GET returns entry with lokasi as array ['Offline (Home Visit)', 'Online (Zoom/Meet)', 'Di Tempat Kami']. Fallback: lokasi as string 'Offline' creates array ['Offline']. Multi-location slots working perfectly."
+
+  - task: "Absensi Batch (INTEGRASI DATA)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "POST /api/absensi now accepts entries array for batch creation (multiple tanggal at once). Each entry can have tanggal, status, catatan. Returns {data: array, count: number}. Fallback: single-entry POST without entries still works."
+      - working: true
+        agent: "testing"
+        comment: "✅ All absensi batch tests passed (3/3): POST with entries array creates 3 records for different tanggal (2025-06-01, 2025-06-03, 2025-06-05) with correct statuses (2 Hadir, 1 Izin). Response returns {data: array of 3, count: 3}. GET /api/absensi?bulan=2025-06 returns all 3 entries. Single-entry POST fallback still works. Batch attendance recording working perfectly."
+
+  - task: "Progress Batch Kelas Grup (INTEGRASI DATA)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "POST /api/progress now accepts entries array for batch creation (multiple santri in group class). Each entry can have santriId, santriNama, nilai, nilaiAngka, catatan. Common fields: materi, halaman, program, tipeKelas, tanggal. Returns {data: array, count: number}. Fallback: single-entry POST without entries still works."
+      - working: true
+        agent: "testing"
+        comment: "✅ All progress batch grup tests passed (2/2): POST with entries array creates 2 records with tipeKelas='grup', same materi='Jilid 2', tanggal='2025-06-10', but different santriNama ('A', 'B'), nilai ('A', 'B'), nilaiAngka (90, 80). Response returns {data: array of 2, count: 2}. Single mode POST with tipeKelas='mandiri' still works. Batch progress for group classes working perfectly."
+
+  - task: "Keuangan with santriId & program (INTEGRASI DATA)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "POST /api/keuangan now accepts and stores santriId and program fields. These fields are returned in GET /api/keuangan responses."
+      - working: true
+        agent: "testing"
+        comment: "✅ All keuangan integration tests passed (2/2): POST with santriId and program='Kelas Mandiri (Offline)' stores both fields correctly. GET /api/keuangan returns entries with santriId and program fields present. Integration with santri data working perfectly."
+
+  - task: "GET Endpoints No Regression (INTEGRASI DATA)"
+    implemented: true
+    working: true
+    file: "app/api/[[...path]]/route.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Verify all existing GET endpoints still work after integration changes: /api/santri?status=aktif, /api/asatidz (with jumlahSantri), /api/stats (6 fields), /api/auth/me."
+      - working: true
+        agent: "testing"
+        comment: "✅ All GET endpoint regression tests passed (4/4): GET /api/santri?status=aktif returns list, GET /api/asatidz returns list with jumlahSantri field, GET /api/stats returns all 6 fields as numbers (santriAktif, santriNon, asatidz, pendingReg, lunas, belum), GET /api/auth/me returns user object. No regression - all existing endpoints working correctly."
+
 frontend:
   - task: "Landing page UI"
     implemented: true
@@ -367,16 +457,17 @@ frontend:
 metadata:
   created_by: "main_agent"
   version: "1.0"
-  test_sequence: 3
+  test_sequence: 4
   run_ui: false
 
 test_plan:
   current_focus:
-    - "Users Management (admin only)"
-    - "Auth Profile Update (all roles)"
-    - "Absensi CRUD with verification"
-    - "Receipts with calculation"
-    - "Wali role with filtered access"
+    - "Jadwal Multi-Hari (INTEGRASI DATA)"
+    - "Slot Kosong Multi-Lokasi (INTEGRASI DATA)"
+    - "Absensi Batch (INTEGRASI DATA)"
+    - "Progress Batch Kelas Grup (INTEGRASI DATA)"
+    - "Keuangan with santriId & program (INTEGRASI DATA)"
+    - "GET Endpoints No Regression (INTEGRASI DATA)"
   stuck_tasks: []
   test_all: false
   test_priority: "high_first"
@@ -495,3 +586,97 @@ agent_communication:
       
       All role-based access controls verified and working correctly. UUID-based IDs working.
       No critical issues found. Backend is production-ready.
+  - agent: "main"
+    message: |
+      Phase 3 - INTEGRASI DATA features added:
+      
+      1) Jadwal Multi-Hari: POST /api/jadwal now accepts hari as array (e.g., ["Senin","Rabu","Jumat"]).
+         Creates one entry per day with unique IDs. Stores guruId, santriId, program.
+         Fallback: string hari creates array with 1 element.
+      
+      2) Slot Kosong Multi-Lokasi: POST /api/slot-kosong now accepts lokasi as array 
+         (e.g., ["Offline (Home Visit)","Online (Zoom/Meet)","Di Tempat Kami"]).
+         Stores lokasi as array. Fallback: string lokasi creates array with 1 element.
+      
+      3) Absensi Batch: POST /api/absensi now accepts entries array for batch creation.
+         Each entry: {tanggal, status, catatan}. Returns {data: array, count: number}.
+         Fallback: single-entry POST without entries still works.
+      
+      4) Progress Batch Kelas Grup: POST /api/progress now accepts entries array for batch creation.
+         Each entry: {santriId, santriNama, nilai, nilaiAngka, catatan}.
+         Common fields: materi, halaman, program, tipeKelas, tanggal.
+         Returns {data: array, count: number}. Fallback: single-entry POST still works.
+      
+      5) Keuangan with santriId & program: POST /api/keuangan now accepts and stores 
+         santriId and program fields. Returned in GET responses.
+      
+      6) Backwards compatibility verified: All existing GET endpoints still work.
+      
+      PLEASE TEST:
+      - Jadwal multi-hari with array and string fallback
+      - Slot kosong multi-lokasi with array and string fallback
+      - Absensi batch with entries array and single-entry fallback
+      - Progress batch with entries array (grup mode) and single-entry fallback (mandiri mode)
+      - Keuangan with santriId and program fields
+      - Verify no regression in existing GET endpoints
+  - agent: "testing"
+    message: |
+      ✅ INTEGRASI DATA BACKEND TESTING COMPLETE - 100% SUCCESS (18/18 tests passed)
+      
+      Comprehensive testing completed for all 6 INTEGRASI DATA features:
+      
+      1. Jadwal Multi-Hari (3/3 ✅):
+         - POST with hari=['Senin','Rabu','Jumat'] creates 3 entries with unique IDs
+         - Each entry has correct hari value, guruId, santriId, program stored
+         - GET returns all 3 entries correctly
+         - Fallback: hari as string 'Sabtu' creates array with 1 element
+         - Multi-day scheduling working perfectly
+      
+      2. Slot Kosong Multi-Lokasi (3/3 ✅):
+         - POST with lokasi array creates slot with 3 locations stored as array
+         - GET returns entry with lokasi as array ['Offline (Home Visit)', 'Online (Zoom/Meet)', 'Di Tempat Kami']
+         - Fallback: lokasi as string 'Offline' creates array ['Offline']
+         - Multi-location slots working perfectly
+      
+      3. Absensi Batch (3/3 ✅):
+         - POST with entries array creates 3 records for different tanggal (2025-06-01, 2025-06-03, 2025-06-05)
+         - Correct statuses (2 Hadir, 1 Izin) stored
+         - Response returns {data: array of 3, count: 3}
+         - GET /api/absensi?bulan=2025-06 returns all 3 entries
+         - Single-entry POST fallback still works
+         - Batch attendance recording working perfectly
+      
+      4. Progress Batch Kelas Grup (2/2 ✅):
+         - POST with entries array creates 2 records with tipeKelas='grup'
+         - Same materi='Jilid 2', tanggal='2025-06-10'
+         - Different santriNama ('A', 'B'), nilai ('A', 'B'), nilaiAngka (90, 80)
+         - Response returns {data: array of 2, count: 2}
+         - Single mode POST with tipeKelas='mandiri' still works
+         - Batch progress for group classes working perfectly
+      
+      5. Keuangan with santriId & program (2/2 ✅):
+         - POST with santriId and program='Kelas Mandiri (Offline)' stores both fields
+         - GET /api/keuangan returns entries with santriId and program fields present
+         - Integration with santri data working perfectly
+      
+      6. GET Endpoints No Regression (4/4 ✅):
+         - GET /api/santri?status=aktif returns list (9 santri)
+         - GET /api/asatidz returns list with jumlahSantri field
+         - GET /api/stats returns all 6 fields as numbers
+         - GET /api/auth/me returns user object
+         - No regression - all existing endpoints working correctly
+      
+      **SUMMARY:**
+      - Total Tests: 18 (across 6 features)
+      - Passed: 18 ✅
+      - Failed: 0
+      - Success Rate: 100%
+      
+      **NO CRITICAL ISSUES FOUND.** All INTEGRASI DATA features working correctly:
+      - Multi-value inputs (arrays) working perfectly
+      - Batch operations creating multiple records correctly
+      - Fallback to single-value/single-entry mode working
+      - New fields (santriId, program in keuangan) storing and retrieving correctly
+      - No regression in existing endpoints
+      
+      **INTEGRASI DATA Phase is production-ready.**

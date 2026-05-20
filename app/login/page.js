@@ -13,7 +13,7 @@ export default function LoginPage() {
   const router = useRouter();
   const [form, setForm] = useState({ email: '', password: '' });
   const [loading, setLoading] = useState(false);
-  const logo = process.env.NEXT_PUBLIC_LOGO_URL;
+  const logo = process.env.NEXT_PUBLIC_LOGO_LOGIN || process.env.NEXT_PUBLIC_LOGO_URL;
 
   const submit = async (e) => {
     e.preventDefault();

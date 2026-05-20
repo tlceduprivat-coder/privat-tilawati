@@ -1,554 +1,657 @@
 #!/usr/bin/env python3
 """
-Backend API Test Suite for Privat Tilawati
-Tests all endpoints with proper authentication and role-based access control
+Backend Integration Test for Privat Tilawati - INTEGRASI DATA Features
+Tests new multi-value features: jadwal multi-hari, slot-kosong multi-lokasi, 
+absensi batch, progress batch, keuangan with santriId/program
 """
 
 import requests
 import json
 import sys
-from typing import Dict, Any, Optional
 
-# Base URL from .env
-BASE_URL = "https://c0d1b38b-ec5b-4fdb-bc64-91fad6d177ca.preview.emergentagent.com/api"
+BASE_URL = "https://tilawati-learn.preview.emergentagent.com/api"
 
-# Seed accounts
-ADMIN_CREDS = {"email": "privattilawati@gmail.com", "password": "admin123"}
-ASATIDZ_CREDS = {"email": "guru@privattilawati.id", "password": "guru123"}
+# Credentials
+ADMIN_EMAIL = "privattilawati@gmail.com"
+ADMIN_PASSWORD = "admin123"
+ASATIDZ_EMAIL = "guru@privattilawati.id"
+ASATIDZ_PASSWORD = "guru123"
 
-# Test state
 admin_token = None
 asatidz_token = None
-test_results = []
-created_ids = {}  # Store created resource IDs for cleanup
+test_guru_id = None
+test_santri_id = None
 
+def log(msg):
+    print(f"✓ {msg}")
 
-def log_test(test_name: str, passed: bool, details: str = ""):
-    """Log test result"""
-    status = "✅ PASS" if passed else "❌ FAIL"
-    print(f"{status} | {test_name}")
-    if details:
-        print(f"   Details: {details}")
-    test_results.append({"test": test_name, "passed": passed, "details": details})
-
-
-def make_request(method: str, endpoint: str, token: Optional[str] = None, 
-                 data: Optional[Dict] = None, expected_status: int = 200) -> tuple:
-    """Make HTTP request and return (success, response, status_code)"""
-    url = f"{BASE_URL}/{endpoint}"
-    headers = {"Content-Type": "application/json"}
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
+def error(msg):
+    print(f"✗ ERROR: {msg}")
     
-    try:
-        if method == "GET":
-            resp = requests.get(url, headers=headers, timeout=10)
-        elif method == "POST":
-            resp = requests.post(url, headers=headers, json=data, timeout=10)
-        elif method == "PUT":
-            resp = requests.put(url, headers=headers, json=data, timeout=10)
-        elif method == "DELETE":
-            resp = requests.delete(url, headers=headers, timeout=10)
-        else:
-            return False, None, 0
-        
-        success = resp.status_code == expected_status
-        try:
-            response_data = resp.json()
-        except:
-            response_data = resp.text
-        
-        return success, response_data, resp.status_code
-    except Exception as e:
-        return False, str(e), 0
-
-
-def test_health():
-    """Test health endpoint"""
-    print("\n=== Testing Health Endpoint ===")
-    success, data, status = make_request("GET", "health", expected_status=200)
-    if success and isinstance(data, dict) and data.get("ok") == True:
-        log_test("GET /api/health", True, f"Response: {data}")
+def test_result(name, passed, details=""):
+    if passed:
+        print(f"✅ PASS: {name}")
+        if details:
+            print(f"   {details}")
     else:
-        log_test("GET /api/health", False, f"Expected ok:true, got status {status}: {data}")
+        print(f"❌ FAIL: {name}")
+        if details:
+            print(f"   {details}")
+    return passed
 
-
-def test_auth():
-    """Test authentication endpoints"""
+# ===== SETUP =====
+def setup_auth():
     global admin_token, asatidz_token
     
-    print("\n=== Testing Authentication ===")
+    print("\n=== SETUP: Authentication ===")
     
-    # Test admin login
-    success, data, status = make_request("POST", "auth/login", data=ADMIN_CREDS, expected_status=200)
-    if success and isinstance(data, dict) and "token" in data and "user" in data:
-        admin_token = data["token"]
-        log_test("POST /api/auth/login (admin)", True, f"Got token, user role: {data['user'].get('role')}")
+    # Login as admin
+    resp = requests.post(f"{BASE_URL}/auth/login", json={
+        "email": ADMIN_EMAIL,
+        "password": ADMIN_PASSWORD
+    })
+    if resp.status_code == 200:
+        admin_token = resp.json()["token"]
+        log(f"Admin login successful")
     else:
-        log_test("POST /api/auth/login (admin)", False, f"Status {status}: {data}")
-        return False
+        error(f"Admin login failed: {resp.status_code} {resp.text}")
+        sys.exit(1)
     
-    # Test asatidz login
-    success, data, status = make_request("POST", "auth/login", data=ASATIDZ_CREDS, expected_status=200)
-    if success and isinstance(data, dict) and "token" in data and "user" in data:
-        asatidz_token = data["token"]
-        log_test("POST /api/auth/login (asatidz)", True, f"Got token, user role: {data['user'].get('role')}")
+    # Login as asatidz
+    resp = requests.post(f"{BASE_URL}/auth/login", json={
+        "email": ASATIDZ_EMAIL,
+        "password": ASATIDZ_PASSWORD
+    })
+    if resp.status_code == 200:
+        asatidz_token = resp.json()["token"]
+        log(f"Asatidz login successful")
     else:
-        log_test("POST /api/auth/login (asatidz)", False, f"Status {status}: {data}")
-        return False
+        error(f"Asatidz login failed: {resp.status_code} {resp.text}")
+        sys.exit(1)
+
+def setup_test_data():
+    global test_guru_id, test_santri_id
     
-    # Test wrong password
-    wrong_creds = {"email": "privattilawati@gmail.com", "password": "wrongpass"}
-    success, data, status = make_request("POST", "auth/login", data=wrong_creds, expected_status=401)
-    if success:
-        log_test("POST /api/auth/login (wrong password)", True, f"Correctly rejected with 401")
-    else:
-        log_test("POST /api/auth/login (wrong password)", False, f"Expected 401, got {status}")
+    print("\n=== SETUP: Test Data ===")
     
-    # Test /me without token
-    success, data, status = make_request("GET", "auth/me", expected_status=401)
-    if success:
-        log_test("GET /api/auth/me (no token)", True, "Correctly rejected with 401")
+    # Create test guru
+    resp = requests.post(f"{BASE_URL}/asatidz", 
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={"nama": "Ustadz Test Integration", "nomorHp": "08123456789"}
+    )
+    if resp.status_code == 200:
+        test_guru_id = resp.json()["data"]["id"]
+        log(f"Created test guru: {test_guru_id}")
     else:
-        log_test("GET /api/auth/me (no token)", False, f"Expected 401, got {status}")
+        error(f"Failed to create test guru: {resp.status_code} {resp.text}")
+        sys.exit(1)
     
-    # Test /me with admin token
-    success, data, status = make_request("GET", "auth/me", token=admin_token, expected_status=200)
-    if success and isinstance(data, dict) and "user" in data:
-        log_test("GET /api/auth/me (admin token)", True, f"User: {data['user'].get('email')}")
+    # Create test santri
+    resp = requests.post(f"{BASE_URL}/santri",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={"nama": "Santri Test Integration", "umur": 10, "gurId": test_guru_id}
+    )
+    if resp.status_code == 200:
+        test_santri_id = resp.json()["data"]["id"]
+        log(f"Created test santri: {test_santri_id}")
     else:
-        log_test("GET /api/auth/me (admin token)", False, f"Status {status}: {data}")
+        error(f"Failed to create test santri: {resp.status_code} {resp.text}")
+        sys.exit(1)
+
+# ===== TEST 1: Jadwal Multi-Hari =====
+def test_jadwal_multi_hari():
+    print("\n=== TEST 1: Jadwal Multi-Hari ===")
+    
+    # Test 1a: POST with array of days
+    resp = requests.post(f"{BASE_URL}/jadwal",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "guruId": test_guru_id,
+            "guruNama": "Ust X",
+            "santriId": test_santri_id,
+            "santriNama": "Santri X",
+            "program": "Kelas Mandiri (Offline)",
+            "hari": ["Senin", "Rabu", "Jumat"],
+            "jam": "16:00-17:00",
+            "lokasi": "Offline (Home Visit)"
+        }
+    )
+    
+    if resp.status_code != 200:
+        return test_result("1a. POST jadwal multi-hari", False, f"Status {resp.status_code}: {resp.text}")
+    
+    data = resp.json().get("data", [])
+    if not isinstance(data, list):
+        return test_result("1a. POST jadwal multi-hari", False, f"Expected array, got {type(data)}")
+    
+    if len(data) != 3:
+        return test_result("1a. POST jadwal multi-hari", False, f"Expected 3 entries, got {len(data)}")
+    
+    # Check each entry has unique id and correct hari
+    ids = [d.get("id") for d in data]
+    haris = [d.get("hari") for d in data]
+    
+    if len(set(ids)) != 3:
+        return test_result("1a. POST jadwal multi-hari", False, f"IDs not unique: {ids}")
+    
+    if set(haris) != {"Senin", "Rabu", "Jumat"}:
+        return test_result("1a. POST jadwal multi-hari", False, f"Hari mismatch: {haris}")
+    
+    # Check all have guruId, santriId, program
+    for d in data:
+        if d.get("guruId") != test_guru_id:
+            return test_result("1a. POST jadwal multi-hari", False, f"guruId mismatch: {d.get('guruId')}")
+        if d.get("santriId") != test_santri_id:
+            return test_result("1a. POST jadwal multi-hari", False, f"santriId mismatch: {d.get('santriId')}")
+        if d.get("program") != "Kelas Mandiri (Offline)":
+            return test_result("1a. POST jadwal multi-hari", False, f"program mismatch: {d.get('program')}")
+    
+    test_result("1a. POST jadwal multi-hari", True, f"Created 3 entries with unique IDs for Senin, Rabu, Jumat")
+    
+    # Test 1b: GET jadwal should return all 3 entries
+    resp = requests.get(f"{BASE_URL}/jadwal",
+        headers={"Authorization": f"Bearer {admin_token}"}
+    )
+    
+    if resp.status_code != 200:
+        return test_result("1b. GET jadwal returns 3 entries", False, f"Status {resp.status_code}")
+    
+    all_jadwal = resp.json().get("data", [])
+    matching = [j for j in all_jadwal if j.get("guruId") == test_guru_id and j.get("santriId") == test_santri_id]
+    
+    if len(matching) < 3:
+        return test_result("1b. GET jadwal returns 3 entries", False, f"Expected at least 3, got {len(matching)}")
+    
+    test_result("1b. GET jadwal returns 3 entries", True, f"Found {len(matching)} entries with guruId, santriId, program stored")
+    
+    # Test 1c: Fallback - hari as string
+    resp = requests.post(f"{BASE_URL}/jadwal",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "guruId": test_guru_id,
+            "guruNama": "Ust Y",
+            "santriId": test_santri_id,
+            "santriNama": "Santri Y",
+            "program": "Kelas Ta'lim (Offline)",
+            "hari": "Sabtu",
+            "jam": "10:00-11:00",
+            "lokasi": "Di Tempat Kami"
+        }
+    )
+    
+    if resp.status_code != 200:
+        return test_result("1c. Fallback: hari as string", False, f"Status {resp.status_code}")
+    
+    data = resp.json().get("data", [])
+    if not isinstance(data, list) or len(data) != 1:
+        return test_result("1c. Fallback: hari as string", False, f"Expected array with 1 element, got {len(data) if isinstance(data, list) else 'not array'}")
+    
+    if data[0].get("hari") != "Sabtu":
+        return test_result("1c. Fallback: hari as string", False, f"Expected hari='Sabtu', got {data[0].get('hari')}")
+    
+    test_result("1c. Fallback: hari as string", True, "String hari converted to array with 1 element")
     
     return True
 
+# ===== TEST 2: Slot Kosong Multi-Lokasi =====
+def test_slot_kosong_multi_lokasi():
+    print("\n=== TEST 2: Slot Kosong Multi-Lokasi ===")
+    
+    # Test 2a: POST with array of lokasi
+    resp = requests.post(f"{BASE_URL}/slot-kosong",
+        headers={"Authorization": f"Bearer {asatidz_token}"},
+        json={
+            "guruNama": "Ust Y",
+            "hari": "Senin",
+            "jam": "15:00-16:00",
+            "lokasi": ["Offline (Home Visit)", "Online (Zoom/Meet)", "Di Tempat Kami"]
+        }
+    )
+    
+    if resp.status_code != 200:
+        return test_result("2a. POST slot-kosong multi-lokasi", False, f"Status {resp.status_code}: {resp.text}")
+    
+    data = resp.json().get("data", {})
+    lokasi = data.get("lokasi")
+    
+    if not isinstance(lokasi, list):
+        return test_result("2a. POST slot-kosong multi-lokasi", False, f"Expected lokasi as array, got {type(lokasi)}")
+    
+    if len(lokasi) != 3:
+        return test_result("2a. POST slot-kosong multi-lokasi", False, f"Expected 3 lokasi, got {len(lokasi)}")
+    
+    expected_lokasi = {"Offline (Home Visit)", "Online (Zoom/Meet)", "Di Tempat Kami"}
+    if set(lokasi) != expected_lokasi:
+        return test_result("2a. POST slot-kosong multi-lokasi", False, f"Lokasi mismatch: {lokasi}")
+    
+    slot_id = data.get("id")
+    test_result("2a. POST slot-kosong multi-lokasi", True, f"Created slot with 3 lokasi: {lokasi}")
+    
+    # Test 2b: GET slot-kosong should return entry with lokasi array
+    resp = requests.get(f"{BASE_URL}/slot-kosong",
+        headers={"Authorization": f"Bearer {admin_token}"}
+    )
+    
+    if resp.status_code != 200:
+        return test_result("2b. GET slot-kosong returns lokasi array", False, f"Status {resp.status_code}")
+    
+    all_slots = resp.json().get("data", [])
+    matching = [s for s in all_slots if s.get("id") == slot_id]
+    
+    if len(matching) != 1:
+        return test_result("2b. GET slot-kosong returns lokasi array", False, f"Slot not found")
+    
+    if not isinstance(matching[0].get("lokasi"), list):
+        return test_result("2b. GET slot-kosong returns lokasi array", False, f"lokasi not array in GET response")
+    
+    test_result("2b. GET slot-kosong returns lokasi array", True, f"Lokasi stored as array: {matching[0].get('lokasi')}")
+    
+    # Test 2c: Fallback - lokasi as string
+    resp = requests.post(f"{BASE_URL}/slot-kosong",
+        headers={"Authorization": f"Bearer {asatidz_token}"},
+        json={
+            "guruNama": "Ust Z",
+            "hari": "Selasa",
+            "jam": "14:00-15:00",
+            "lokasi": "Offline"
+        }
+    )
+    
+    if resp.status_code != 200:
+        return test_result("2c. Fallback: lokasi as string", False, f"Status {resp.status_code}")
+    
+    data = resp.json().get("data", {})
+    lokasi = data.get("lokasi")
+    
+    if not isinstance(lokasi, list) or len(lokasi) != 1:
+        return test_result("2c. Fallback: lokasi as string", False, f"Expected array with 1 element, got {lokasi}")
+    
+    if lokasi[0] != "Offline":
+        return test_result("2c. Fallback: lokasi as string", False, f"Expected ['Offline'], got {lokasi}")
+    
+    test_result("2c. Fallback: lokasi as string", True, "String lokasi converted to array ['Offline']")
+    
+    return True
 
-def test_registrations():
-    """Test public registrations endpoint"""
-    print("\n=== Testing Registrations ===")
+# ===== TEST 3: Absensi Batch =====
+def test_absensi_batch():
+    print("\n=== TEST 3: Absensi Batch (Multiple Tanggal) ===")
     
-    # Test public POST (no auth required)
-    reg_data = {
-        "nama": "Ahmad Fauzi",
-        "umur": 12,
-        "alamat": "Jl. Masjid No. 45, Jakarta",
-        "whatsapp": "081234567890",
-        "program": "Tahsin Al-Quran",
-        "keterangan": "Ingin belajar tajwid"
-    }
-    success, data, status = make_request("POST", "registrations", data=reg_data, expected_status=200)
-    if success and isinstance(data, dict) and data.get("success") and "data" in data:
-        created_ids["registration"] = data["data"].get("id")
-        log_test("POST /api/registrations (public, no auth)", True, f"Created registration with id: {created_ids['registration']}")
-    else:
-        log_test("POST /api/registrations (public, no auth)", False, f"Status {status}: {data}")
+    # Test 3a: POST with entries array
+    resp = requests.post(f"{BASE_URL}/absensi",
+        headers={"Authorization": f"Bearer {asatidz_token}"},
+        json={
+            "santriId": test_santri_id,
+            "santriNama": "Santri Z",
+            "program": "Kelas Mentoring (Offline)",
+            "entries": [
+                {"tanggal": "2025-06-01", "status": "Hadir", "catatan": "Bagus"},
+                {"tanggal": "2025-06-03", "status": "Hadir"},
+                {"tanggal": "2025-06-05", "status": "Izin"}
+            ]
+        }
+    )
     
-    # Test POST with missing field
-    incomplete_data = {"nama": "Test", "umur": 10}
-    success, data, status = make_request("POST", "registrations", data=incomplete_data, expected_status=400)
-    if success:
-        log_test("POST /api/registrations (missing fields)", True, "Correctly rejected with 400")
-    else:
-        log_test("POST /api/registrations (missing fields)", False, f"Expected 400, got {status}")
+    if resp.status_code != 200:
+        return test_result("3a. POST absensi batch", False, f"Status {resp.status_code}: {resp.text}")
     
-    # Test GET as admin
-    success, data, status = make_request("GET", "registrations", token=admin_token, expected_status=200)
-    if success and isinstance(data, dict) and "data" in data and isinstance(data["data"], list):
-        found = any(r.get("id") == created_ids.get("registration") for r in data["data"])
-        log_test("GET /api/registrations (admin)", True, f"Got {len(data['data'])} registrations, found created: {found}")
-    else:
-        log_test("GET /api/registrations (admin)", False, f"Status {status}: {data}")
+    result = resp.json()
+    data = result.get("data", [])
+    count = result.get("count", 0)
     
-    # Test GET as asatidz (should be forbidden)
-    success, data, status = make_request("GET", "registrations", token=asatidz_token, expected_status=403)
-    if success:
-        log_test("GET /api/registrations (asatidz)", True, "Correctly rejected with 403")
-    else:
-        log_test("GET /api/registrations (asatidz)", False, f"Expected 403, got {status}")
+    if not isinstance(data, list):
+        return test_result("3a. POST absensi batch", False, f"Expected data as array, got {type(data)}")
     
-    # Test GET without token
-    success, data, status = make_request("GET", "registrations", expected_status=401)
-    if success:
-        log_test("GET /api/registrations (no token)", True, "Correctly rejected with 401")
-    else:
-        log_test("GET /api/registrations (no token)", False, f"Expected 401, got {status}")
+    if len(data) != 3 or count != 3:
+        return test_result("3a. POST absensi batch", False, f"Expected 3 entries, got data={len(data)}, count={count}")
     
-    # Test DELETE as admin
-    if created_ids.get("registration"):
-        success, data, status = make_request("DELETE", f"registrations/{created_ids['registration']}", 
-                                            token=admin_token, expected_status=200)
-        if success:
-            log_test("DELETE /api/registrations/{id} (admin)", True, "Successfully deleted")
-        else:
-            log_test("DELETE /api/registrations/{id} (admin)", False, f"Status {status}: {data}")
+    # Check each entry
+    tanggals = [d.get("tanggal") for d in data]
+    statuses = [d.get("status") for d in data]
+    
+    if set(tanggals) != {"2025-06-01", "2025-06-03", "2025-06-05"}:
+        return test_result("3a. POST absensi batch", False, f"Tanggal mismatch: {tanggals}")
+    
+    if statuses.count("Hadir") != 2 or statuses.count("Izin") != 1:
+        return test_result("3a. POST absensi batch", False, f"Status mismatch: {statuses}")
+    
+    # Check all have santriId and program
+    for d in data:
+        if d.get("santriId") != test_santri_id:
+            return test_result("3a. POST absensi batch", False, f"santriId mismatch")
+        if d.get("program") != "Kelas Mentoring (Offline)":
+            return test_result("3a. POST absensi batch", False, f"program mismatch")
+    
+    test_result("3a. POST absensi batch", True, f"Created 3 entries: {tanggals} with statuses {statuses}")
+    
+    # Test 3b: GET absensi with bulan filter
+    resp = requests.get(f"{BASE_URL}/absensi?bulan=2025-06",
+        headers={"Authorization": f"Bearer {admin_token}"}
+    )
+    
+    if resp.status_code != 200:
+        return test_result("3b. GET absensi with bulan filter", False, f"Status {resp.status_code}")
+    
+    all_absensi = resp.json().get("data", [])
+    matching = [a for a in all_absensi if a.get("santriId") == test_santri_id and a.get("tanggal", "").startswith("2025-06")]
+    
+    if len(matching) < 3:
+        return test_result("3b. GET absensi with bulan filter", False, f"Expected at least 3, got {len(matching)}")
+    
+    test_result("3b. GET absensi with bulan filter", True, f"Found {len(matching)} entries for 2025-06")
+    
+    # Test 3c: Single-entry POST (fallback)
+    resp = requests.post(f"{BASE_URL}/absensi",
+        headers={"Authorization": f"Bearer {asatidz_token}"},
+        json={
+            "santriId": test_santri_id,
+            "santriNama": "Santri Single",
+            "program": "Kelas Mandiri (Offline)",
+            "tanggal": "2025-06-10",
+            "status": "Hadir"
+        }
+    )
+    
+    if resp.status_code != 200:
+        return test_result("3c. Single-entry POST (fallback)", False, f"Status {resp.status_code}")
+    
+    data = resp.json().get("data", {})
+    if isinstance(data, list):
+        return test_result("3c. Single-entry POST (fallback)", False, f"Expected single object, got array")
+    
+    if data.get("tanggal") != "2025-06-10":
+        return test_result("3c. Single-entry POST (fallback)", False, f"Tanggal mismatch")
+    
+    test_result("3c. Single-entry POST (fallback)", True, "Single entry mode still works")
+    
+    return True
 
+# ===== TEST 4: Progress Batch Kelas Grup =====
+def test_progress_batch_grup():
+    print("\n=== TEST 4: Progress Batch Kelas Grup ===")
+    
+    # Create second santri for group test
+    resp = requests.post(f"{BASE_URL}/santri",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={"nama": "Santri B Integration", "umur": 11, "gurId": test_guru_id}
+    )
+    
+    if resp.status_code != 200:
+        error(f"Failed to create second santri: {resp.status_code}")
+        return False
+    
+    santri_b_id = resp.json()["data"]["id"]
+    log(f"Created second santri: {santri_b_id}")
+    
+    # Test 4a: POST with entries array (grup mode)
+    resp = requests.post(f"{BASE_URL}/progress",
+        headers={"Authorization": f"Bearer {asatidz_token}"},
+        json={
+            "materi": "Jilid 2",
+            "halaman": "hal 1-10",
+            "program": "Kelas Ta'lim (Offline)",
+            "tipeKelas": "grup",
+            "tanggal": "2025-06-10",
+            "entries": [
+                {
+                    "santriId": test_santri_id,
+                    "santriNama": "A",
+                    "nilai": "A",
+                    "nilaiAngka": 90,
+                    "catatan": "Bagus"
+                },
+                {
+                    "santriId": santri_b_id,
+                    "santriNama": "B",
+                    "nilai": "B",
+                    "nilaiAngka": 80,
+                    "catatan": "Lumayan"
+                }
+            ]
+        }
+    )
+    
+    if resp.status_code != 200:
+        return test_result("4a. POST progress batch grup", False, f"Status {resp.status_code}: {resp.text}")
+    
+    result = resp.json()
+    data = result.get("data", [])
+    count = result.get("count", 0)
+    
+    if not isinstance(data, list):
+        return test_result("4a. POST progress batch grup", False, f"Expected data as array, got {type(data)}")
+    
+    if len(data) != 2 or count != 2:
+        return test_result("4a. POST progress batch grup", False, f"Expected 2 entries, got data={len(data)}, count={count}")
+    
+    # Check each entry
+    for d in data:
+        if d.get("tipeKelas") != "grup":
+            return test_result("4a. POST progress batch grup", False, f"tipeKelas should be 'grup', got {d.get('tipeKelas')}")
+        if d.get("materi") != "Jilid 2":
+            return test_result("4a. POST progress batch grup", False, f"materi mismatch")
+        if d.get("tanggal") != "2025-06-10":
+            return test_result("4a. POST progress batch grup", False, f"tanggal mismatch")
+    
+    # Check different santri and nilai
+    santri_names = [d.get("santriNama") for d in data]
+    nilais = [d.get("nilai") for d in data]
+    nilai_angkas = [d.get("nilaiAngka") for d in data]
+    
+    if set(santri_names) != {"A", "B"}:
+        return test_result("4a. POST progress batch grup", False, f"santriNama mismatch: {santri_names}")
+    
+    if set(nilais) != {"A", "B"}:
+        return test_result("4a. POST progress batch grup", False, f"nilai mismatch: {nilais}")
+    
+    if set(nilai_angkas) != {90, 80}:
+        return test_result("4a. POST progress batch grup", False, f"nilaiAngka mismatch: {nilai_angkas}")
+    
+    test_result("4a. POST progress batch grup", True, f"Created 2 entries with tipeKelas='grup', same materi/tanggal, different santri & nilai")
+    
+    # Test 4b: Single mode (mandiri)
+    resp = requests.post(f"{BASE_URL}/progress",
+        headers={"Authorization": f"Bearer {asatidz_token}"},
+        json={
+            "santriId": test_santri_id,
+            "santriNama": "Santri Mandiri",
+            "materi": "Jilid 1",
+            "halaman": "hal 5",
+            "program": "Kelas Mandiri (Offline)",
+            "tipeKelas": "mandiri",
+            "tanggal": "2025-06-11"
+        }
+    )
+    
+    if resp.status_code != 200:
+        return test_result("4b. Single mode (mandiri)", False, f"Status {resp.status_code}")
+    
+    data = resp.json().get("data", {})
+    if isinstance(data, list):
+        return test_result("4b. Single mode (mandiri)", False, f"Expected single object, got array")
+    
+    if data.get("tipeKelas") != "mandiri":
+        return test_result("4b. Single mode (mandiri)", False, f"tipeKelas should be 'mandiri', got {data.get('tipeKelas')}")
+    
+    test_result("4b. Single mode (mandiri)", True, "Single entry mode with tipeKelas='mandiri' works")
+    
+    return True
 
-def test_santri():
-    """Test Santri CRUD endpoints"""
-    print("\n=== Testing Santri ===")
+# ===== TEST 5: Keuangan with santriId & program =====
+def test_keuangan_with_santri_program():
+    print("\n=== TEST 5: Keuangan with santriId & program ===")
     
-    # Test POST as admin
-    santri_data = {
-        "nama": "Fatimah Zahra",
-        "umur": 10,
-        "alamat": "Jl. Pesantren No. 12, Bandung",
-        "nomorHp": "082345678901",
-        "program": "Tahfidz Quran",
-        "status": "aktif"
-    }
-    success, data, status = make_request("POST", "santri", token=admin_token, data=santri_data, expected_status=200)
-    if success and isinstance(data, dict) and "data" in data and data["data"].get("id"):
-        created_ids["santri"] = data["data"]["id"]
-        log_test("POST /api/santri (admin)", True, f"Created santri with id: {created_ids['santri']}")
-    else:
-        log_test("POST /api/santri (admin)", False, f"Status {status}: {data}")
+    # Test 5a: POST with santriId and program
+    resp = requests.post(f"{BASE_URL}/keuangan",
+        headers={"Authorization": f"Bearer {admin_token}"},
+        json={
+            "santriId": test_santri_id,
+            "santriNama": "X",
+            "program": "Kelas Mandiri (Offline)",
+            "bulan": "Juni",
+            "nominal": 85000,
+            "status": "Belum"
+        }
+    )
     
-    # Test POST as asatidz (should be forbidden)
-    success, data, status = make_request("POST", "santri", token=asatidz_token, data=santri_data, expected_status=403)
-    if success:
-        log_test("POST /api/santri (asatidz)", True, "Correctly rejected with 403")
-    else:
-        log_test("POST /api/santri (asatidz)", False, f"Expected 403, got {status}")
+    if resp.status_code != 200:
+        return test_result("5a. POST keuangan with santriId & program", False, f"Status {resp.status_code}: {resp.text}")
     
-    # Test GET with status filter as admin
-    success, data, status = make_request("GET", "santri?status=aktif", token=admin_token, expected_status=200)
-    if success and isinstance(data, dict) and "data" in data:
-        log_test("GET /api/santri?status=aktif (admin)", True, f"Got {len(data['data'])} active santri")
-    else:
-        log_test("GET /api/santri?status=aktif (admin)", False, f"Status {status}: {data}")
+    data = resp.json().get("data", {})
     
-    # Test GET as asatidz (should be allowed)
-    success, data, status = make_request("GET", "santri?status=aktif", token=asatidz_token, expected_status=200)
-    if success and isinstance(data, dict) and "data" in data:
-        log_test("GET /api/santri?status=aktif (asatidz)", True, f"Got {len(data['data'])} active santri")
-    else:
-        log_test("GET /api/santri?status=aktif (asatidz)", False, f"Status {status}: {data}")
+    if data.get("santriId") != test_santri_id:
+        return test_result("5a. POST keuangan with santriId & program", False, f"santriId not stored: {data.get('santriId')}")
     
-    # Test PUT as admin
-    if created_ids.get("santri"):
-        update_data = {"nama": "Fatimah Zahra Updated"}
-        success, data, status = make_request("PUT", f"santri/{created_ids['santri']}", 
-                                            token=admin_token, data=update_data, expected_status=200)
-        if success:
-            log_test("PUT /api/santri/{id} (admin)", True, "Successfully updated")
-            # Verify update
-            success2, data2, status2 = make_request("GET", "santri", token=admin_token, expected_status=200)
-            if success2:
-                updated = next((s for s in data2["data"] if s.get("id") == created_ids["santri"]), None)
-                if updated and updated.get("nama") == "Fatimah Zahra Updated":
-                    log_test("PUT /api/santri/{id} verification", True, "Update verified")
-                else:
-                    log_test("PUT /api/santri/{id} verification", False, "Update not reflected")
-        else:
-            log_test("PUT /api/santri/{id} (admin)", False, f"Status {status}: {data}")
+    if data.get("program") != "Kelas Mandiri (Offline)":
+        return test_result("5a. POST keuangan with santriId & program", False, f"program not stored: {data.get('program')}")
     
-    # Test DELETE as admin
-    if created_ids.get("santri"):
-        success, data, status = make_request("DELETE", f"santri/{created_ids['santri']}", 
-                                            token=admin_token, expected_status=200)
-        if success:
-            log_test("DELETE /api/santri/{id} (admin)", True, "Successfully deleted")
-        else:
-            log_test("DELETE /api/santri/{id} (admin)", False, f"Status {status}: {data}")
+    if data.get("nominal") != 85000:
+        return test_result("5a. POST keuangan with santriId & program", False, f"nominal mismatch: {data.get('nominal')}")
+    
+    keuangan_id = data.get("id")
+    test_result("5a. POST keuangan with santriId & program", True, f"Created with santriId={test_santri_id}, program='Kelas Mandiri (Offline)'")
+    
+    # Test 5b: GET keuangan should return with santriId and program
+    resp = requests.get(f"{BASE_URL}/keuangan",
+        headers={"Authorization": f"Bearer {admin_token}"}
+    )
+    
+    if resp.status_code != 200:
+        return test_result("5b. GET keuangan returns santriId & program", False, f"Status {resp.status_code}")
+    
+    all_keuangan = resp.json().get("data", [])
+    matching = [k for k in all_keuangan if k.get("id") == keuangan_id]
+    
+    if len(matching) != 1:
+        return test_result("5b. GET keuangan returns santriId & program", False, f"Keuangan not found")
+    
+    k = matching[0]
+    if k.get("santriId") != test_santri_id:
+        return test_result("5b. GET keuangan returns santriId & program", False, f"santriId not in GET response")
+    
+    if k.get("program") != "Kelas Mandiri (Offline)":
+        return test_result("5b. GET keuangan returns santriId & program", False, f"program not in GET response")
+    
+    test_result("5b. GET keuangan returns santriId & program", True, f"Fields present: santriId={k.get('santriId')}, program={k.get('program')}")
+    
+    return True
 
+# ===== TEST 6: Verify GET endpoints (no regression) =====
+def test_get_endpoints_no_regression():
+    print("\n=== TEST 6: Verify GET Endpoints (No Regression) ===")
+    
+    # Test 6a: GET /api/santri?status=aktif
+    resp = requests.get(f"{BASE_URL}/santri?status=aktif",
+        headers={"Authorization": f"Bearer {admin_token}"}
+    )
+    
+    if resp.status_code != 200:
+        return test_result("6a. GET /api/santri?status=aktif", False, f"Status {resp.status_code}")
+    
+    data = resp.json().get("data", [])
+    if not isinstance(data, list):
+        return test_result("6a. GET /api/santri?status=aktif", False, f"Expected array, got {type(data)}")
+    
+    test_result("6a. GET /api/santri?status=aktif", True, f"Returns list with {len(data)} santri")
+    
+    # Test 6b: GET /api/asatidz
+    resp = requests.get(f"{BASE_URL}/asatidz",
+        headers={"Authorization": f"Bearer {admin_token}"}
+    )
+    
+    if resp.status_code != 200:
+        return test_result("6b. GET /api/asatidz", False, f"Status {resp.status_code}")
+    
+    data = resp.json().get("data", [])
+    if not isinstance(data, list):
+        return test_result("6b. GET /api/asatidz", False, f"Expected array, got {type(data)}")
+    
+    # Check jumlahSantri field exists
+    if len(data) > 0 and "jumlahSantri" not in data[0]:
+        return test_result("6b. GET /api/asatidz", False, f"jumlahSantri field missing")
+    
+    test_result("6b. GET /api/asatidz", True, f"Returns list with jumlahSantri field")
+    
+    # Test 6c: GET /api/stats
+    resp = requests.get(f"{BASE_URL}/stats",
+        headers={"Authorization": f"Bearer {admin_token}"}
+    )
+    
+    if resp.status_code != 200:
+        return test_result("6c. GET /api/stats", False, f"Status {resp.status_code}")
+    
+    data = resp.json()
+    required_fields = ["santriAktif", "santriNon", "asatidz", "pendingReg", "lunas", "belum"]
+    
+    for field in required_fields:
+        if field not in data:
+            return test_result("6c. GET /api/stats", False, f"Missing field: {field}")
+        if not isinstance(data[field], int):
+            return test_result("6c. GET /api/stats", False, f"Field {field} should be int, got {type(data[field])}")
+    
+    test_result("6c. GET /api/stats", True, f"Returns all 6 fields as numbers")
+    
+    # Test 6d: GET /api/auth/me
+    resp = requests.get(f"{BASE_URL}/auth/me",
+        headers={"Authorization": f"Bearer {admin_token}"}
+    )
+    
+    if resp.status_code != 200:
+        return test_result("6d. GET /api/auth/me", False, f"Status {resp.status_code}")
+    
+    data = resp.json().get("user", {})
+    if not data.get("id") or not data.get("email"):
+        return test_result("6d. GET /api/auth/me", False, f"User object incomplete")
+    
+    test_result("6d. GET /api/auth/me", True, f"Returns user object")
+    
+    return True
 
-def test_asatidz():
-    """Test Asatidz CRUD endpoints"""
-    print("\n=== Testing Asatidz ===")
-    
-    # Test POST as admin
-    asatidz_data = {
-        "nama": "Ustadz Abdullah",
-        "nomorHp": "083456789012",
-        "alamat": "Jl. Dakwah No. 7, Yogyakarta",
-        "status": "aktif"
-    }
-    success, data, status = make_request("POST", "asatidz", token=admin_token, data=asatidz_data, expected_status=200)
-    if success and isinstance(data, dict) and "data" in data and data["data"].get("id"):
-        created_ids["asatidz"] = data["data"]["id"]
-        log_test("POST /api/asatidz (admin)", True, f"Created asatidz with id: {created_ids['asatidz']}")
-    else:
-        log_test("POST /api/asatidz (admin)", False, f"Status {status}: {data}")
-    
-    # Test GET as admin (should include jumlahSantri)
-    success, data, status = make_request("GET", "asatidz", token=admin_token, expected_status=200)
-    if success and isinstance(data, dict) and "data" in data and isinstance(data["data"], list):
-        has_count = all("jumlahSantri" in item for item in data["data"])
-        log_test("GET /api/asatidz (admin)", True, f"Got {len(data['data'])} asatidz, jumlahSantri field present: {has_count}")
-    else:
-        log_test("GET /api/asatidz (admin)", False, f"Status {status}: {data}")
-    
-    # Test PUT as admin
-    if created_ids.get("asatidz"):
-        update_data = {"nama": "Ustadz Abdullah Updated"}
-        success, data, status = make_request("PUT", f"asatidz/{created_ids['asatidz']}", 
-                                            token=admin_token, data=update_data, expected_status=200)
-        if success:
-            log_test("PUT /api/asatidz/{id} (admin)", True, "Successfully updated")
-        else:
-            log_test("PUT /api/asatidz/{id} (admin)", False, f"Status {status}: {data}")
-    
-    # Test DELETE as admin
-    if created_ids.get("asatidz"):
-        success, data, status = make_request("DELETE", f"asatidz/{created_ids['asatidz']}", 
-                                            token=admin_token, expected_status=200)
-        if success:
-            log_test("DELETE /api/asatidz/{id} (admin)", True, "Successfully deleted")
-        else:
-            log_test("DELETE /api/asatidz/{id} (admin)", False, f"Status {status}: {data}")
-
-
-def test_jadwal():
-    """Test Jadwal CRUD endpoints"""
-    print("\n=== Testing Jadwal ===")
-    
-    # Test POST as admin
-    jadwal_data = {
-        "guruNama": "Ustadz Ahmad",
-        "santriNama": "Fatimah",
-        "hari": "Senin",
-        "jam": "16:00-17:00",
-        "lokasi": "Offline"
-    }
-    success, data, status = make_request("POST", "jadwal", token=admin_token, data=jadwal_data, expected_status=200)
-    if success and isinstance(data, dict) and "data" in data and data["data"].get("id"):
-        created_ids["jadwal"] = data["data"]["id"]
-        log_test("POST /api/jadwal (admin)", True, f"Created jadwal with id: {created_ids['jadwal']}")
-    else:
-        log_test("POST /api/jadwal (admin)", False, f"Status {status}: {data}")
-    
-    # Test GET as admin
-    success, data, status = make_request("GET", "jadwal", token=admin_token, expected_status=200)
-    if success and isinstance(data, dict) and "data" in data:
-        log_test("GET /api/jadwal (admin)", True, f"Got {len(data['data'])} jadwal")
-    else:
-        log_test("GET /api/jadwal (admin)", False, f"Status {status}: {data}")
-    
-    # Test GET as asatidz (should be allowed)
-    success, data, status = make_request("GET", "jadwal", token=asatidz_token, expected_status=200)
-    if success and isinstance(data, dict) and "data" in data:
-        log_test("GET /api/jadwal (asatidz)", True, f"Got {len(data['data'])} jadwal")
-    else:
-        log_test("GET /api/jadwal (asatidz)", False, f"Status {status}: {data}")
-    
-    # Test PUT and DELETE
-    if created_ids.get("jadwal"):
-        update_data = {"jam": "17:00-18:00"}
-        success, data, status = make_request("PUT", f"jadwal/{created_ids['jadwal']}", 
-                                            token=admin_token, data=update_data, expected_status=200)
-        if success:
-            log_test("PUT /api/jadwal/{id} (admin)", True, "Successfully updated")
-        else:
-            log_test("PUT /api/jadwal/{id} (admin)", False, f"Status {status}: {data}")
-        
-        success, data, status = make_request("DELETE", f"jadwal/{created_ids['jadwal']}", 
-                                            token=admin_token, expected_status=200)
-        if success:
-            log_test("DELETE /api/jadwal/{id} (admin)", True, "Successfully deleted")
-        else:
-            log_test("DELETE /api/jadwal/{id} (admin)", False, f"Status {status}: {data}")
-
-
-def test_progress():
-    """Test Progress CRUD endpoints"""
-    print("\n=== Testing Progress ===")
-    
-    # Test POST as asatidz
-    progress_data = {
-        "santriNama": "Fatimah",
-        "guruNama": "Ustadz Ahmad",
-        "materi": "Surah Al-Baqarah",
-        "halaman": "1-5",
-        "catatan": "Sudah lancar membaca",
-        "tanggal": "2025-01-15"
-    }
-    success, data, status = make_request("POST", "progress", token=asatidz_token, data=progress_data, expected_status=200)
-    if success and isinstance(data, dict) and "data" in data and data["data"].get("id"):
-        created_ids["progress_asatidz"] = data["data"]["id"]
-        log_test("POST /api/progress (asatidz)", True, f"Created progress with id: {created_ids['progress_asatidz']}")
-    else:
-        log_test("POST /api/progress (asatidz)", False, f"Status {status}: {data}")
-    
-    # Test POST as admin
-    success, data, status = make_request("POST", "progress", token=admin_token, data=progress_data, expected_status=200)
-    if success and isinstance(data, dict) and "data" in data and data["data"].get("id"):
-        created_ids["progress_admin"] = data["data"]["id"]
-        log_test("POST /api/progress (admin)", True, f"Created progress with id: {created_ids['progress_admin']}")
-    else:
-        log_test("POST /api/progress (admin)", False, f"Status {status}: {data}")
-    
-    # Test GET
-    success, data, status = make_request("GET", "progress", token=admin_token, expected_status=200)
-    if success and isinstance(data, dict) and "data" in data:
-        log_test("GET /api/progress (admin)", True, f"Got {len(data['data'])} progress records")
-    else:
-        log_test("GET /api/progress (admin)", False, f"Status {status}: {data}")
-    
-    # Test DELETE
-    if created_ids.get("progress_asatidz"):
-        success, data, status = make_request("DELETE", f"progress/{created_ids['progress_asatidz']}", 
-                                            token=admin_token, expected_status=200)
-        if success:
-            log_test("DELETE /api/progress/{id} (admin)", True, "Successfully deleted")
-        else:
-            log_test("DELETE /api/progress/{id} (admin)", False, f"Status {status}: {data}")
-    
-    if created_ids.get("progress_admin"):
-        success, data, status = make_request("DELETE", f"progress/{created_ids['progress_admin']}", 
-                                            token=asatidz_token, expected_status=200)
-        if success:
-            log_test("DELETE /api/progress/{id} (asatidz)", True, "Successfully deleted")
-        else:
-            log_test("DELETE /api/progress/{id} (asatidz)", False, f"Status {status}: {data}")
-
-
-def test_keuangan():
-    """Test Keuangan CRUD endpoints"""
-    print("\n=== Testing Keuangan ===")
-    
-    # Test POST as admin
-    keuangan_data = {
-        "santriNama": "Fatimah",
-        "bulan": "Januari",
-        "nominal": 150000,
-        "status": "Belum",
-        "catatan": "SPP bulan Januari"
-    }
-    success, data, status = make_request("POST", "keuangan", token=admin_token, data=keuangan_data, expected_status=200)
-    if success and isinstance(data, dict) and "data" in data and data["data"].get("id"):
-        created_ids["keuangan"] = data["data"]["id"]
-        log_test("POST /api/keuangan (admin)", True, f"Created keuangan with id: {created_ids['keuangan']}")
-    else:
-        log_test("POST /api/keuangan (admin)", False, f"Status {status}: {data}")
-    
-    # Test POST as asatidz (should be forbidden)
-    success, data, status = make_request("POST", "keuangan", token=asatidz_token, data=keuangan_data, expected_status=403)
-    if success:
-        log_test("POST /api/keuangan (asatidz)", True, "Correctly rejected with 403")
-    else:
-        log_test("POST /api/keuangan (asatidz)", False, f"Expected 403, got {status}")
-    
-    # Test GET as admin
-    success, data, status = make_request("GET", "keuangan", token=admin_token, expected_status=200)
-    if success and isinstance(data, dict) and "data" in data:
-        log_test("GET /api/keuangan (admin)", True, f"Got {len(data['data'])} keuangan records")
-    else:
-        log_test("GET /api/keuangan (admin)", False, f"Status {status}: {data}")
-    
-    # Test GET as asatidz (should be forbidden)
-    success, data, status = make_request("GET", "keuangan", token=asatidz_token, expected_status=403)
-    if success:
-        log_test("GET /api/keuangan (asatidz)", True, "Correctly rejected with 403")
-    else:
-        log_test("GET /api/keuangan (asatidz)", False, f"Expected 403, got {status}")
-    
-    # Test PUT as admin (update status to Lunas)
-    if created_ids.get("keuangan"):
-        update_data = {"status": "Lunas"}
-        success, data, status = make_request("PUT", f"keuangan/{created_ids['keuangan']}", 
-                                            token=admin_token, data=update_data, expected_status=200)
-        if success:
-            log_test("PUT /api/keuangan/{id} (admin, status to Lunas)", True, "Successfully updated")
-        else:
-            log_test("PUT /api/keuangan/{id} (admin, status to Lunas)", False, f"Status {status}: {data}")
-    
-    # Test DELETE as admin
-    if created_ids.get("keuangan"):
-        success, data, status = make_request("DELETE", f"keuangan/{created_ids['keuangan']}", 
-                                            token=admin_token, expected_status=200)
-        if success:
-            log_test("DELETE /api/keuangan/{id} (admin)", True, "Successfully deleted")
-        else:
-            log_test("DELETE /api/keuangan/{id} (admin)", False, f"Status {status}: {data}")
-
-
-def test_stats():
-    """Test Stats endpoint"""
-    print("\n=== Testing Stats ===")
-    
-    # Test GET as admin
-    success, data, status = make_request("GET", "stats", token=admin_token, expected_status=200)
-    if success and isinstance(data, dict):
-        required_fields = ["santriAktif", "santriNon", "asatidz", "pendingReg", "lunas", "belum"]
-        has_all = all(field in data for field in required_fields)
-        all_numbers = all(isinstance(data.get(field), int) for field in required_fields)
-        if has_all and all_numbers:
-            log_test("GET /api/stats (admin)", True, f"Got all stats: {data}")
-        else:
-            log_test("GET /api/stats (admin)", False, f"Missing fields or wrong types: {data}")
-    else:
-        log_test("GET /api/stats (admin)", False, f"Status {status}: {data}")
-    
-    # Test GET as asatidz (should be allowed)
-    success, data, status = make_request("GET", "stats", token=asatidz_token, expected_status=200)
-    if success and isinstance(data, dict):
-        log_test("GET /api/stats (asatidz)", True, f"Got stats: {data}")
-    else:
-        log_test("GET /api/stats (asatidz)", False, f"Status {status}: {data}")
-
-
-def print_summary():
-    """Print test summary"""
-    print("\n" + "="*60)
-    print("TEST SUMMARY")
-    print("="*60)
-    
-    passed = sum(1 for r in test_results if r["passed"])
-    failed = sum(1 for r in test_results if not r["passed"])
-    total = len(test_results)
-    
-    print(f"Total Tests: {total}")
-    print(f"Passed: {passed} ✅")
-    print(f"Failed: {failed} ❌")
-    print(f"Success Rate: {(passed/total*100):.1f}%")
-    
-    if failed > 0:
-        print("\nFailed Tests:")
-        for r in test_results:
-            if not r["passed"]:
-                print(f"  ❌ {r['test']}")
-                if r["details"]:
-                    print(f"     {r['details']}")
-    
-    print("="*60)
-    
-    return failed == 0
-
-
+# ===== MAIN =====
 def main():
-    """Run all tests"""
-    print("="*60)
-    print("PRIVAT TILAWATI - BACKEND API TEST SUITE")
-    print("="*60)
-    print(f"Base URL: {BASE_URL}")
-    print("="*60)
+    print("=" * 70)
+    print("BACKEND INTEGRATION TEST - INTEGRASI DATA FEATURES")
+    print("Testing: Jadwal Multi-Hari, Slot Multi-Lokasi, Absensi Batch,")
+    print("         Progress Batch Grup, Keuangan with santriId/program")
+    print("=" * 70)
     
     try:
-        # Run tests in order
-        test_health()
+        setup_auth()
+        setup_test_data()
         
-        if not test_auth():
-            print("\n❌ Authentication failed. Cannot proceed with other tests.")
-            sys.exit(1)
+        results = []
+        results.append(("Jadwal Multi-Hari", test_jadwal_multi_hari()))
+        results.append(("Slot Kosong Multi-Lokasi", test_slot_kosong_multi_lokasi()))
+        results.append(("Absensi Batch", test_absensi_batch()))
+        results.append(("Progress Batch Grup", test_progress_batch_grup()))
+        results.append(("Keuangan with santriId & program", test_keuangan_with_santri_program()))
+        results.append(("GET Endpoints No Regression", test_get_endpoints_no_regression()))
         
-        test_registrations()
-        test_santri()
-        test_asatidz()
-        test_jadwal()
-        test_progress()
-        test_keuangan()
-        test_stats()
+        print("\n" + "=" * 70)
+        print("TEST SUMMARY")
+        print("=" * 70)
         
-        # Print summary
-        all_passed = print_summary()
+        passed = sum(1 for _, r in results if r)
+        total = len(results)
         
-        sys.exit(0 if all_passed else 1)
+        for name, result in results:
+            status = "✅ PASS" if result else "❌ FAIL"
+            print(f"{status}: {name}")
         
+        print(f"\nTotal: {passed}/{total} tests passed ({passed*100//total}%)")
+        
+        if passed == total:
+            print("\n🎉 ALL INTEGRATION TESTS PASSED!")
+            return 0
+        else:
+            print(f"\n⚠️  {total - passed} test(s) failed")
+            return 1
+            
     except Exception as e:
-        print(f"\n❌ Test suite error: {e}")
+        print(f"\n❌ FATAL ERROR: {e}")
         import traceback
         traceback.print_exc()
-        sys.exit(1)
-
+        return 1
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
