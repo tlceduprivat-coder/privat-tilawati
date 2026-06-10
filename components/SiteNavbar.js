@@ -16,7 +16,7 @@ export default function SiteNavbar() {
     <header className="sticky top-0 z-40 w-full backdrop-blur-md bg-white/90 border-b border-border">
       <div className="container mx-auto px-6 lg:px-10 h-20 flex items-center justify-between">
         <Link href="/" className="flex items-center py-3">
-          <img src="main/privattilawati-long" alt="Privat Tilawati" className="h-9 md:h-10 w-auto object-contain" />
+          <img src="main/privattilawati-long.pngs" alt="Privat Tilawati" className="h-9 md:h-10 w-auto object-contain" />
         </Link>
         <nav className="hidden md:flex items-center gap-7">
           {links.map(l => (
