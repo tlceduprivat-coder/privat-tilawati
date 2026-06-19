@@ -9,7 +9,7 @@ export default function SiteFooter() {
     <footer className="bg-gradient-to-br from-sky-900 via-blue-900 to-sky-950 text-white mt-20">
       <div className="container mx-auto px-6 lg:px-10 py-12 grid md:grid-cols-4 gap-8">
         <div className="md:col-span-2">
-          <img src={logo} alt="logo" className="h-14 w-auto object-contain mb-4" />
+          <img src={logo} alt="logo" className="h-14 w-auto object-contain mb-4" invert/>
           <p className="text-sm text-white/80 max-w-md">
             Lembaga pendidikan Al-Qur'an yang berdiri sejak 2017. Mendidik generasi Qur'ani dengan metode Tilawati yang sistematis, menyenangkan, dan efektif.
           </p>
