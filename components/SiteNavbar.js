@@ -16,7 +16,7 @@ export default function SiteNavbar() {
     <header className="sticky top-0 z-40 w-full backdrop-blur-md bg-white/90 border-b border-border">
       <div className="container mx-auto px-6 lg:px-10 h-20 flex items-center justify-between">
         <Link href="/" className="flex items-center py-3">
-          <img src={logo} alt="logo" className="h-[52px] w-auto object-contain mb-4 mt-2" />
+          <img src={logo} alt="logo" className="h-[42px] w-auto object-contain mb-[8px] mt-[8px]" />
         </Link>
         <nav className="hidden md:flex items-center gap-7">
           {links.map(l => (
