@@ -2,7 +2,7 @@
 import { MessageCircle } from 'lucide-react';
 
 export default function WhatsAppFloat() {
-  const wa = process.env.NEXT_PUBLIC_WHATSAPP || '085117253381';
+  const wa = process.env.NEXT_PUBLIC_WHATSAPP || '082117253381';
   const phone = `62${wa.replace(/^0/,'')}`;
   const msg = encodeURIComponent('Assalamu\'alaikum, saya tertarik untuk mendaftar di Privat Tilawati.');
   return (
