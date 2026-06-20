@@ -8,7 +8,7 @@ import WhatsAppFloat from '@/components/WhatsAppFloat';
 import { BookOpen, Users, Award, Calendar, CheckCircle2, GraduationCap, Heart, Sparkles, Star, Quote, Building2, Wifi, Home as HomeIcon } from 'lucide-react';
 
 export default function HomePage() {
-  const wa = process.env.NEXT_PUBLIC_WHATSAPP || '085117253381';
+  const wa = process.env.NEXT_PUBLIC_WHATSAPP || '082117253380';
   const waLink = `https://wa.me/62${wa.replace(/^0/,'')}?text=${encodeURIComponent('Assalamu\'alaikum, saya tertarik mendaftar di Privat Tilawati.')}`;
   const hero = 'https://images.pexels.com/photos/15979873/pexels-photo-15979873.jpeg';
   const learning2 = 'https://images.unsplash.com/photo-1582033131298-5bb54c589518';
